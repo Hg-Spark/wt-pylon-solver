@@ -759,6 +759,14 @@ def _is_special_bomb(leaves: Sequence[LeafWeapon]) -> bool:
     return False
 
 
+def _leaf_icon_type(leaf: LeafWeapon) -> str:
+    payload = _payload_block(leaf.data)
+    value = payload.get("iconType") if isinstance(payload, dict) else None
+    if not value and isinstance(leaf.data, dict):
+        value = leaf.data.get("iconType")
+    return str(value or "").strip().lower()
+
+
 def _is_high_drag_bomb(leaves: Sequence[LeafWeapon]) -> bool:
     # editPresetChapter/trigger only identify the bomb chapter; the game's
     # high-drag display class is carried by the projectile iconType.  Keep
