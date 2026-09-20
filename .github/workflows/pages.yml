@@ -13,7 +13,7 @@ permissions:
   id-token: write
 
 concurrency:
-  group: pages
+  group: wt-pylon-solver-pages
   cancel-in-progress: true
 
 jobs:
