@@ -1,5 +1,9 @@
 # wt-pylon-solver
 
+[![Build and deploy](https://github.com/Hg-Spark/wt-pylon-solver/actions/workflows/pages.yml/badge.svg)](https://github.com/Hg-Spark/wt-pylon-solver/actions/workflows/pages.yml)
+
+站点：https://hg-spark.github.io/wt-pylon-solver/
+
 wt-pylon-solver 现为纯静态站点：Python 只在构建阶段从 War Thunder Datamine 生成飞机挂载 JSON；浏览器直接读取 JSON，并在 Web Worker 中完成求解。线上不需要 Flask、VPS、Docker 或其他常驻后端。
 
 ## 本地开发
