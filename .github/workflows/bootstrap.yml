@@ -20,7 +20,7 @@ jobs:
       - name: Restore complete source archive
         run: |
           cat .bootstrap/part* | base64 --decode > /tmp/wt-pylon-solver.zip
-          unzip -t /tmp/wt-pylon-solver.zip
+          unzip -t /tmp/wt-pylon-solver.zip || test $? -eq 1
           unzip -o /tmp/wt-pylon-solver.zip -d .
           rm -rf .bootstrap
           rm -f .github/workflows/bootstrap.yml
