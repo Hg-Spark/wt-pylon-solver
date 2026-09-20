@@ -70,3 +70,4 @@ function selectionGroupKey(selection: Selection): string {
 function selectionName(selection: Selection): string {
   return selection.weapon_display_name || selection.weapon_id || "未知挂载";
 }
+
