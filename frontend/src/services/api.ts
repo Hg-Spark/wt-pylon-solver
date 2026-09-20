@@ -15,7 +15,7 @@ export async function fetchOptions(
   signal?: AbortSignal,
 ): Promise<OptionsResponse> {
   const aircraft = payload.aircraft.trim().toLowerCase();
-  if (!/^[a-z0-9_]+$/.test(aircraft)) {
+  if (!/^[a-z0-9_-]+$/.test(aircraft)) {
     throw new ApiError("飞机 ID 格式无效，请使用 Datamine ID，例如 su_34 或 f_15e。", 400);
   }
 
