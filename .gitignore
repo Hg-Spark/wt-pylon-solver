@@ -1,0 +1,9 @@
+.datamine/
+.cache/
+dist/
+frontend/node_modules/
+frontend/public/data/*.json
+!frontend/public/data/.gitkeep
+__pycache__/
+*.py[cod]
+.DS_Store
