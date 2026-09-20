@@ -211,7 +211,7 @@ def parse_datamine_loadout(
     unit_id = str(aircraft or "").strip().lower()
     if not unit_id:
         raise DatamineError("aircraft is required")
-    if not re.fullmatch(r"[a-z0-9_]+", unit_id):
+    if not re.fullmatch(r"[a-z0-9_-]+", unit_id):
         raise DatamineNotFound(
             f"Invalid aircraft ID '{aircraft}'. Use the exact Datamine ID, for example f_15e or su_34."
         )
@@ -686,6 +686,16 @@ def _payload_block(data: Mapping[str, Any]) -> Mapping[str, Any]:
         if isinstance(value, dict):
             return value
     return data
+
+
+def _normalize_chapter(value: str) -> str:
+    chapter = str(value or "").strip().lower().replace("_", " ")
+    aliases = {
+        "agm": "atgm",
+        "guided bomb": "guided bombs",
+        "fuel tank": "fuel tanks",
+    }
+    return aliases.get(chapter, chapter)
 
 
 def _effective_chapter(leaf: LeafWeapon) -> str:
