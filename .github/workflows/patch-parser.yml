@@ -1,0 +1,71 @@
+name: Fix static data parser
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/patch-parser.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Patch parser and aircraft ID validation
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          parser = Path("datamine_loadout_parser.py")
+          text = parser.read_text(encoding="utf-8")
+
+          if "def _normalize_chapter" not in text:
+              marker = "def _effective_chapter(leaf: LeafWeapon) -> str:\n"
+              if marker not in text:
+                  raise SystemExit("effective chapter marker not found")
+              helper = """def _normalize_chapter(value: str) -> str:
+    chapter = str(value or "").strip().lower().replace("_", " ")
+    aliases = {
+        "agm": "atgm",
+        "guided bomb": "guided bombs",
+        "fuel tank": "fuel tanks",
+    }
+    return aliases.get(chapter, chapter)
+
+
+"""
+              text = text.replace(marker, helper + marker, 1)
+
+          text = text.replace(
+              're.fullmatch(r"[a-z0-9_]+", unit_id)',
+              're.fullmatch(r"[a-z0-9_-]+", unit_id)',
+              1,
+          )
+          parser.write_text(text, encoding="utf-8")
+
+          api = Path("frontend/src/services/api.ts")
+          text = api.read_text(encoding="utf-8")
+          text = text.replace(
+              'if (!/^[a-z0-9_]+$/.test(aircraft)) {',
+              'if (!/^[a-z0-9_-]+$/.test(aircraft)) {',
+              1,
+          )
+          api.write_text(text, encoding="utf-8")
+          PY
+
+          python -m py_compile datamine_loadout_parser.py build_static_data.py
+          rm -f .github/workflows/patch-parser.yml
+
+      - name: Commit fixes
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "Fix static data parser and aircraft IDs"
+          git push
