@@ -2,7 +2,8 @@
 
 [![Build and deploy](https://github.com/Hg-Spark/wt-pylon-solver/actions/workflows/pages.yml/badge.svg)](https://github.com/Hg-Spark/wt-pylon-solver/actions/workflows/pages.yml)
 
-站点地址（部署成功后）：https://hg-spark.github.io/wt-pylon-solver/
+Cloudflare Pages（启用后）：`https://<Cloudflare 项目名>.pages.dev/`  
+原 GitHub Pages 站点：https://hg-spark.github.io/wt-pylon-solver/
 
 wt-pylon-solver 现为纯静态站点：Python 只在构建阶段从 War Thunder Datamine 生成飞机挂载 JSON；浏览器直接读取 JSON，并在 Web Worker 中完成求解。线上不需要 Flask、VPS、Docker 或其他常驻后端。
 
@@ -43,6 +44,22 @@ npm run build
 ```
 
 最终静态站点输出到根目录 `dist/`，可以直接交给任何静态托管平台。
+
+## Cloudflare Pages（推荐公开访问域名）
+
+此仓库已为 Cloudflare Pages 的 **Git integration（GitHub）** 准备构建脚本。部署时使用 `*.pages.dev` 域名，网址不包含 GitHub 用户名；GitHub 仓库本身仍是公开的。
+
+1. 在 [Cloudflare Workers & Pages](https://dash.cloudflare.com/) 创建 **Pages → Connect to Git → GitHub** 项目，并授权 `Hg-Spark/wt-pylon-solver`。
+2. 选择 `main` 作为生产分支，Framework preset 选 **None**；Root directory 留空（仓库根目录）。
+3. 设置 **Build command**：`bash scripts/build_cloudflare_pages.sh`。
+4. 设置 **Build output directory**：`dist`。Python 3.12 和 Node 22 由根目录的 `.python-version`、`.node-version` 指定。
+5. 点击部署。完成后使用 Cloudflare 实际分配的 `<项目名>.pages.dev` 域名（项目名可能被占用）。
+
+构建脚本仅拉取 War Thunder Datamine 必需的目录与文件，随后生成所有飞机 JSON，执行 Vue/TypeScript 检查并构建静态站点。每次向 `main` 推送代码，Cloudflare 都会自动构建和部署。
+
+**每日更新 Datamine（可选）：** Cloudflare Pages 项目中进入 **Settings → Builds → Add deploy hook**，选择 `main` 并复制部署钩子 URL。在 GitHub 仓库 **Settings → Secrets and variables → Actions** 新增 Repository secret：`CF_PAGES_DEPLOY_HOOK`，值填入完整 URL。现有 `.github/workflows/cloudflare-refresh.yml` 每天会触发一次 Cloudflare 构建；未配置该 Secret 时自动跳过。请勿将该 URL 提交到 Git。
+
+确认 Cloudflare 站点可用后，原 GitHub Pages 可自行在仓库 Settings → Pages 中停用，以避免重复构建。Cloudflare 连接及首次项目创建须由 Cloudflare 账户所有者完成。
 
 ## GitHub Pages
 
