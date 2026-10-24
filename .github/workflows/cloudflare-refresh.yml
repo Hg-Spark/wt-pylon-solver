@@ -1,0 +1,24 @@
+name: Refresh Cloudflare Pages Datamine
+
+on:
+  schedule:
+    - cron: "17 4 * * *"
+  workflow_dispatch:
+
+permissions: {}
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger Cloudflare Pages deploy hook
+        env:
+          CF_PAGES_DEPLOY_HOOK: ${{ secrets.CF_PAGES_DEPLOY_HOOK }}
+        shell: bash
+        run: |
+          if [[ -z "$CF_PAGES_DEPLOY_HOOK" ]]; then
+            echo "::notice::Cloudflare Pages deploy hook is not configured; skipping refresh."
+            exit 0
+          fi
+          curl --fail-with-body --silent --show-error --max-time 30 \
+            --request POST "$CF_PAGES_DEPLOY_HOOK"
