@@ -19,11 +19,13 @@ concurrency:
 jobs:
   build:
     runs-on: ubuntu-latest
-    outputs:
-      pages_outcome: ${{ steps.pages.outcome }}
     steps:
       - name: Checkout wt-pylon-solver
         uses: actions/checkout@v4
+
+      # Fail early when GitHub Pages has not been enabled in repository settings.
+      - name: Configure Pages
+        uses: actions/configure-pages@v5
 
       - name: Checkout War Thunder Datamine
         uses: actions/checkout@v4
@@ -76,19 +78,12 @@ jobs:
           path: dist
           if-no-files-found: error
 
-      - name: Configure Pages
-        id: pages
-        continue-on-error: true
-        uses: actions/configure-pages@v5
-
       - name: Upload Pages artifact
-        if: steps.pages.outcome == 'success'
         uses: actions/upload-pages-artifact@v3
         with:
           path: dist
 
   deploy:
-    if: needs.build.outputs.pages_outcome == 'success'
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
