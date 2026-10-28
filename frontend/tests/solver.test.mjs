@@ -115,7 +115,14 @@ test("at-least quantity counts only added weapons, never pinned weapons", () => 
   const results = solve(pylons, 200, {fixedPylons: {1: "PIN"}, quantityConstraints});
   assert.ok(results.length > 0);
   assert.ok(results.every((r) => names(r).has("PIN") && names(r).has("NEW")));
-  assert.deepEqual(solve(pylons, 100, {fixedPylons: {1: "PIN"}, quantityConstraints}), []);
+  const lowTarget = solve(pylons, 100, {
+    fixedPylons: {1: "PIN"}, quantityConstraints, maxOverkill: 100,
+  });
+  assert.ok(lowTarget.length > 0);
+  assert.ok(lowTarget.every((r) => names(r).has("NEW")));
+  assert.deepEqual(solve(pylons, 100, {
+    fixedPylons: {1: "PIN"}, quantityConstraints, allowedSlots: new Set([1]),
+  }), []);
 });
 
 test("exact additional quantity ignores fixed mount and requires the specified new count", () => {
