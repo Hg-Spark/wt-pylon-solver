@@ -3,6 +3,7 @@
 dist/
 frontend/node_modules/
 frontend/public/data/*.json
+frontend/public/icons/*.png
 !frontend/public/data/.gitkeep
 __pycache__/
 *.py[cod]
