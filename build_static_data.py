@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import argparse
 import json
+import re
+import shutil
 from pathlib import Path
 from typing import Any, Iterable
 
@@ -23,6 +25,7 @@ def compact_option(weapon: dict[str, Any]) -> dict[str, Any]:
         "damage": weapon.get("damage"),
         "counted_base_damage": weapon.get("counted_base_damage", 0) or 0,
         "weight_kg": weapon.get("weight_kg"),
+        "icon_type": weapon.get("icon_type"),
         **{key: weapon[key] for key in ("required_option_ids", "banned_option_ids", "support") if weapon.get(key)},
     }
 
@@ -87,7 +90,7 @@ def all_aircraft_ids(root: Path) -> Iterable[str]:
             yield aircraft
 
 
-def write_aircraft(aircraft: str, source: DatamineSource, output: Path) -> bool:
+def write_aircraft(aircraft: str, source: DatamineSource, output: Path, icon_types: set[str]) -> bool:
     try:
         loadout = parse_datamine_loadout(aircraft, source=source)
     except DatamineError as exc:
@@ -99,6 +102,11 @@ def write_aircraft(aircraft: str, source: DatamineSource, output: Path) -> bool:
         print(f"skip {aircraft}: no usable loadout")
         return False
 
+    icon_types.update(
+        option["icon_type"] for option in payload["options"]
+        if isinstance(option.get("icon_type"), str)
+        and re.fullmatch(r"[a-z0-9_-]+", option["icon_type"])
+    )
     path = output / f"{aircraft}.json"
     path.write_text(
         json.dumps(payload, ensure_ascii=False, separators=(",", ":")),
@@ -133,8 +141,24 @@ def main() -> None:
     aircraft_ids = list(all_aircraft_ids(root)) if args.all and root else [item.lower() for item in args.aircraft]
 
     written = 0
+    icon_types: set[str] = set()
     for aircraft in aircraft_ids:
-        written += int(write_aircraft(aircraft, source, output))
+        written += int(write_aircraft(aircraft, source, output, icon_types))
+
+    if root is not None:
+        icon_root = root / "atlases.vromfs.bin_u/gameuiskin"
+        icon_output = output.parent / "icons"
+        icon_output.mkdir(parents=True, exist_ok=True)
+        if args.clean:
+            for path in icon_output.glob("*.png"):
+                path.unlink()
+        copied = 0
+        for icon_type in sorted(icon_types):
+            icon_file = icon_root / f"{icon_type}.png"
+            if icon_file.is_file():
+                shutil.copyfile(icon_file, icon_output / icon_file.name)
+                copied += 1
+        print(f"copied {copied}/{len(icon_types)} pylon icons")
 
     if written == 0:
         raise SystemExit("No aircraft data was generated")
