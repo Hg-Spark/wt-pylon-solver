@@ -8,9 +8,11 @@ import {
   preparePylons,
 } from "../domain/options";
 import {safeInteger} from "../domain/loadout";
+import {calculateReward} from "../domain/solver";
 import type {SolverInput} from "../domain/solver";
 import type {
   BombingRewardProfile,
+  FixedPylons,
   OptionGroup,
   OptionRow,
   OptionSubgroup,
@@ -46,6 +48,7 @@ export const useLoadoutStore = defineStore("loadout", () => {
   const selectedOptions = ref<Set<string>>(new Set());
   const damageOverrides = ref<Record<string, number>>({});
   const quantitySettings = ref<Record<string, RowQuantitySetting>>({});
+  const fixedPylons = ref<FixedPylons>({});
 
   const collapsedGroups = ref<Set<string>>(new Set());
 
@@ -108,6 +111,64 @@ export const useLoadoutStore = defineStore("loadout", () => {
     const selected = availableSlots.value.filter((slot) => allowedSlots.value.has(slot));
     return selected.length ? `已选 ${selected.length}/${availableSlots.value.length} 个挂点` : "不限挂点";
   });
+  const optionById = computed(() => new Map(options.value.map((option) => [option.option_id, option])));
+  const initialSummary = computed(() => {
+    let damage = 0;
+    let countedBaseDamage = 0;
+    let weightKg = 0;
+    let damageKnown = true;
+    let weightKnown = true;
+    let slotCount = 0;
+    for (const optionId of Object.values(fixedPylons.value)) {
+      if (optionId == null) continue;
+      const option = optionById.value.get(optionId);
+      if (!option) continue;
+      const actual = Object.prototype.hasOwnProperty.call(damageOverrides.value, optionId)
+        ? damageOverrides.value[optionId] : option.damage;
+      if (actual == null || !Number.isFinite(actual)) damageKnown = false;
+      else damage += actual;
+      countedBaseDamage += option.counted_base_damage;
+      weightKg += option.weight_kg;
+      if (!option.weight_known) weightKnown = false;
+      slotCount += 1;
+    }
+    return {
+      damage: damageKnown ? damage : null,
+      counted_base_damage: countedBaseDamage,
+      total_weight_kg: weightKnown ? Math.round(weightKg * 10) / 10 : null,
+      reward: calculateReward(countedBaseDamage, rewardProfile.value),
+      slot_count: slotCount,
+    };
+  });
+  const fixedConflict = computed(() => {
+    const fixed = fixedPylons.value;
+    const all = new Map(pylons.value.map((pylon) => [pylon.slot, pylon]));
+    const locked = Object.entries(fixed);
+    for (const [key, optionId] of locked) {
+      const slot = Number(key);
+      if (allowedSlots.value.size && !allowedSlots.value.has(slot)) {
+        return `P${slot} 已固定，但当前挂点限制不允许使用该位置。`;
+      }
+      if (optionId == null) continue;
+      const option = all.get(slot)?.options.find((item) => item.option_id === optionId);
+      if (!option) return `P${slot} 的固定预设已失效。`;
+      for (const requiredId of option.required_option_ids || []) {
+        const match = pylons.value.find((pylon) => pylon.options.some((o) => o.option_id === requiredId));
+        if (!match) return `P${slot} 的 ${option.displayName} 缺少必要挂载。`;
+        if (Object.prototype.hasOwnProperty.call(fixed, match.slot) && fixed[match.slot] !== requiredId) {
+          return `P${slot} 的 ${option.displayName} 需要 P${match.slot} 的指定配套挂载。`;
+        }
+      }
+      for (const [otherKey, otherId] of locked) {
+        if (otherId == null || otherKey === key) continue;
+        const other = optionById.value.get(otherId);
+        if (option.banned_option_ids?.includes(otherId) || other?.banned_option_ids?.includes(optionId)) {
+          return `P${slot} 与 P${otherKey} 的固定挂载互斥。`;
+        }
+      }
+    }
+    return null;
+  });
   async function loadOptions(): Promise<void> {
     const requestedAircraft = normalizedAircraft.value;
     if (!requestedAircraft) {
@@ -128,6 +189,7 @@ export const useLoadoutStore = defineStore("loadout", () => {
     availableSlots.value = [];
     allowedSlots.value = new Set();
     selectedOptions.value = new Set();
+    fixedPylons.value = {};
     collapsedGroups.value = new Set();
     status.value = "loading";
     errorMessage.value = "";
@@ -175,6 +237,10 @@ export const useLoadoutStore = defineStore("loadout", () => {
       return;
     }
 
+    if (fixedConflict.value) {
+      setError(fixedConflict.value);
+      return;
+    }
     const currentAircraft = normalizedAircraft.value;
     const requestId = ++solveRequestId;
     status.value = "solving";
@@ -192,6 +258,7 @@ export const useLoadoutStore = defineStore("loadout", () => {
         allowedOptions: new Set(selectedOptions.value),
         damageOverrides: {...damageOverrides.value},
         quantityConstraints: quantityConstraintEntries.value.map(cloneQuantityConstraint),
+        fixedPylons: {...fixedPylons.value},
       };
       const solutions = await solveInWorker(input);
 
@@ -374,6 +441,26 @@ export const useLoadoutStore = defineStore("loadout", () => {
     collapsedGroups.value = next;
   }
 
+  function setFixedPylon(slot: number, value: string | null | undefined): void {
+    const pylon = pylons.value.find((item) => item.slot === slot);
+    if (!pylon || (value != null && !pylon.options.some((option) => option.option_id === value))) return;
+    const next = {...fixedPylons.value};
+    if (value === undefined) delete next[slot];
+    else next[slot] = value;
+    fixedPylons.value = next;
+  }
+
+  function useSolutionAsInitial(solution: Solution): void {
+    const next: FixedPylons = {};
+    for (const selection of solution.selections || []) {
+      if (pylons.value.some((pylon) => pylon.slot === selection.slot
+        && pylon.options.some((option) => option.option_id === selection.option_id))) {
+        next[selection.slot] = selection.option_id;
+      }
+    }
+    fixedPylons.value = next;
+  }
+
   function clearSlotLimit(): void {
     allowedSlots.value = new Set();
   }
@@ -405,6 +492,7 @@ export const useLoadoutStore = defineStore("loadout", () => {
     selectedOptions.value = new Set();
     damageOverrides.value = {};
     quantitySettings.value = {};
+    fixedPylons.value = {};
     collapsedGroups.value = new Set();
     rewardProfile.value = null;
     lastResult.value = null;
@@ -426,6 +514,7 @@ export const useLoadoutStore = defineStore("loadout", () => {
       selectedOptions,
       damageOverrides,
       quantityConstraintSignature,
+      fixedPylons,
     ],
     invalidateResult,
   );
@@ -445,6 +534,9 @@ export const useLoadoutStore = defineStore("loadout", () => {
     selectedOptions,
     damageOverrides,
     quantitySettings,
+    fixedPylons,
+    initialSummary,
+    fixedConflict,
     collapsedGroups,
     status,
     errorMessage,
@@ -479,6 +571,8 @@ export const useLoadoutStore = defineStore("loadout", () => {
     toggleGroup,
     clearSlotLimit,
     toggleSlot,
+    setFixedPylon,
+    useSolutionAsInitial,
   };
 });
 
