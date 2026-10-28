@@ -23,6 +23,7 @@ def compact_option(weapon: dict[str, Any]) -> dict[str, Any]:
         "damage": weapon.get("damage"),
         "counted_base_damage": weapon.get("counted_base_damage", 0) or 0,
         "weight_kg": weapon.get("weight_kg"),
+        **{key: weapon[key] for key in ("required_option_ids", "banned_option_ids", "support") if weapon.get(key)},
     }
 
 
