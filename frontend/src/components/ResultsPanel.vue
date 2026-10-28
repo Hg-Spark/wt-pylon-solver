@@ -70,7 +70,7 @@ const mountStations = computed<MountStation[]>(() => {
     const selection = selected.get(pylon.slot) || null;
     const fixed = store.fixedPylons[pylon.slot];
     const locked = Object.prototype.hasOwnProperty.call(store.fixedPylons, pylon.slot);
-    const state = previewMode.value === "result"
+    const state: MountStation["state"] = previewMode.value === "result"
       ? (selection ? "result" : "empty")
       : !locked ? "free" : fixed == null ? "empty" : "fixed";
     const optionId = previewMode.value === "result" ? selection?.option_id : fixed;
