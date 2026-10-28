@@ -7,7 +7,7 @@ import InputNumber from "primevue/inputnumber";
 import InputText from "primevue/inputtext";
 import Popover from "primevue/popover";
 import Select from "primevue/select";
-import {groupSolutionSelections, solutionId} from "../domain/loadout";
+import {solutionId} from "../domain/loadout";
 import {formatNumber} from "../utils/format";
 import {useLoadoutStore} from "../stores/loadout";
 import type {PreparedOption, Selection, Solution, SortBy} from "../types";
@@ -31,7 +31,6 @@ interface ResultRow {
 }
 
 const store = useLoadoutStore();
-const expandedRows = ref<Record<string, boolean>>({});
 const selectedRowId = ref<string | null>(null);
 const previewMode = ref<"initial" | "result">("initial");
 const mountSearch = ref("");
@@ -91,7 +90,6 @@ const metrics = computed(() => previewMode.value === "initial" || !activeRow.val
   });
 
 watch(() => store.lastResult, (result) => {
-  expandedRows.value = {};
   selectedRowId.value = null;
   previewMode.value = result?.solutions.length ? "result" : "initial";
 });
@@ -307,7 +305,6 @@ function formatReward(value: number | null): string {
 
     <div v-if="store.lastResult && resultCount" class="table-panel">
       <DataTable
-        v-model:expanded-rows="expandedRows"
         :value="resultRows"
         data-key="id"
         sort-field="rank"
@@ -317,8 +314,6 @@ function formatReward(value: number | null): string {
         class="results-datatable"
         table-style="min-width: 680px"
       >
-        <Column expander style="width: 3rem" />
-
         <Column field="rank" header="排名" sortable header-class="numeric-column" body-class="numeric-column rank-column">
           <template #body="{data}">
             <span class="table-rank">{{ data.rank }}</span>
@@ -341,27 +336,13 @@ function formatReward(value: number | null): string {
           <template #body="{data}">{{ formatNumber(data.slot_count) }}</template>
         </Column>
 
-        <template #expansion="{data}">
-          <div v-if="data.solution.selections?.length">
-            <div class="selection-grid">
-            <div
-              v-for="selection in groupSolutionSelections(data.solution.selections)"
-              :key="selection.key"
-              class="selection-card"
-            >
-              <strong>{{ selection.name }}</strong>
-              <span>×{{ selection.totalCount }} · {{ formatNumber(selection.damage) }}</span>
-            </div>
-            </div>
-          </div>
-          <div v-else class="empty-inline">没有挂载数据。</div>
-        </template>
+
       </DataTable>
     </div>
 
     <div v-else-if="store.lastResult" class="empty-state results-empty">
       <strong>没有找到可行方案</strong>
-      <p>调整目标伤害或挂点限制后重新求解。</p>
+      <p>调整目标伤害、候选武器或挂点矩阵中的固定配置后重新求解。</p>
     </div>
 
     <div v-else class="empty-state results-empty">
