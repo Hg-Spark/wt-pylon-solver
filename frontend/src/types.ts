@@ -1,3 +1,9 @@
+export interface AircraftIndexItem {
+  id: string;
+  zh: string;
+  en: string;
+}
+
 export type SortBy = "high_yield" | "weapons" | "weight";
 export type QuantityMode = "exact" | "at_least";
 
