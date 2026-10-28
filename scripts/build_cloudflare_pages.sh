@@ -18,6 +18,7 @@ git -C "$datamine_root" sparse-checkout set --no-cone \
   "aces.vromfs.bin_u/gamedata/damage_model/explosive.blkx" \
   "char.vromfs.bin_u/config/wpcost.blkx" \
   "char.vromfs.bin_u/config/warpoints.blkx" \
+  "lang.vromfs.bin_u/lang/units.csv" \
   "lang.vromfs.bin_u/lang/units_weaponry.csv"
 
 python -m pip install -r requirements.txt
