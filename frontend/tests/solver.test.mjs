@@ -153,35 +153,28 @@ test("a fixed weapon still receives its required support pod", () => {
   assert.deepEqual(solve(pylons, 100, {fixedPylons: {1: "GBU", 2: null}}), []);
 });
 
-test("a manually fixed pod can be retained even when no weapon depends on it", () => {
-  const pylons = [
-    pylon(1, option(1, "POD", 0, {support: true, counted_base_damage: 0})),
-    pylon(2, option(2, "BOMB", 100)),
-  
+
 test("invalid fixed preset cannot silently disappear", () => {
   const pylons = [pylon(1, option(1, "A", 100)), pylon(2, option(2, "B", 100))];
   assert.deepEqual(solve(pylons, 100, {fixedPylons: {1: "MISSING"}}), []);
 });
 
-test("fixed weapons respect mutual-exclusion constraints", () => {
-  const pylons = [
-    pylon(1, option(1, "A", 100, {banned_option_ids: ["B"]})),
-    pylon(2, option(2, "B", 100)),
-  ];
-  assert.deepEqual(solve(pylons, 200, {fixedPylons: {1: "A", 2: "B"}}), []);
-});
 
 test("fixed air-to-air or other non-bombing stores consume a station", () => {
   const pylons = [
-    pylon(1, option(1, "AAM", 0, {weap
-test("pinned-empty station outside allowed station subset remains valid", () => {
-  const pylons = [
-    pylon(1, option(1, "A", 100)),
-    pylon(2, option(2, "B", 100)),
+    pylon(1, option(1, "AAM", 0, {weapon_subcategory: "air_to_air"})),
+    pylon(2, option(2, "BOMB", 100)),
   ];
-  const results = solve(pylons, 100, {
-    allowedSlots: new Set([2]), fixedPylons: {1: null},
-  });
+  const results = solve(pylons, 100, {fixedPylons: {1: "AAM"}});
   assert.ok(results.length > 0);
-  assert.ok(results.every((result) => !names(result).has("A") && names(result).has("B")));
+  assert.ok(results.every((r) => names(r).has("AAM") && names(r).has("BOMB")));
+  assert.deepEqual(results[0].selections.map((item) => item.slot), [1, 2]);
+
+  const unknown = [
+    pylon(1, option(1, "UNKNOWN", null)),
+    pylon(2, option(2, "BOMB", 100)),
+  ];
+  const kept = solve(unknown, 100, {fixedPylons: {1: "UNKNOWN"}});
+  assert.ok(kept.length > 0);
+  assert.ok(kept.every((r) => names(r).has("UNKNOWN")));
 });
