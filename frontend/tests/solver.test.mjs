@@ -174,3 +174,22 @@ test("fixed weapons respect mutual-exclusion constraints", () => {
   ];
   assert.deepEqual(solve(pylons, 200, {fixedPylons: {1: "A", 2: "B"}}), []);
 });
+
+test("fixed air-to-air or other non-bombing stores consume a station", () => {
+  const pylons = [
+    pylon(1, option(1, "AAM", 0, {weapon_subcategory: "air_to_air"})),
+    pylon(2, option(2, "BOMB", 100)),
+  ];
+  const results = solve(pylons, 100, {fixedPylons: {1: "AAM"}});
+  assert.ok(results.length > 0);
+  assert.ok(results.every((r) => names(r).has("AAM") && names(r).has("BOMB")));
+  assert.deepEqual(results[0].selections.map((item) => item.slot), [1, 2]);
+
+  const unknown = [
+    pylon(1, option(1, "UNKNOWN", null)),
+    pylon(2, option(2, "BOMB", 100)),
+  ];
+  const kept = solve(unknown, 100, {fixedPylons: {1: "UNKNOWN"}});
+  assert.ok(kept.length > 0);
+  assert.ok(kept.every((r) => names(r).has("UNKNOWN")));
+});
