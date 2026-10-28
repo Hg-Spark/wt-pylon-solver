@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import {ref} from "vue";
 import Button from "primevue/button";
 import Checkbox from "primevue/checkbox";
 import InputNumber from "primevue/inputnumber";
@@ -6,6 +7,14 @@ import InputText from "primevue/inputtext";
 import {useLoadoutStore} from "../stores/loadout";
 
 const store = useLoadoutStore();
+const expandedRows = ref<Set<string>>(new Set());
+
+function toggleDetails(rowId: string): void {
+  const next = new Set(expandedRows.value);
+  if (next.has(rowId)) next.delete(rowId);
+  else next.add(rowId);
+  expandedRows.value = next;
+}
 
 </script>
 
@@ -63,8 +72,7 @@ const store = useLoadoutStore();
           />
           <span>全部挂载</span>
         </label>
-        <span>伤害</span>
-        <span title="仅自由挂点的新增枚数，固定挂载不计入">新增数</span>
+        <span>单枚伤害 · 高级条件</span>
       </div>
 
       <section v-for="group in store.groupedRows" :key="group.key" class="tree-group">
@@ -117,43 +125,59 @@ const store = useLoadoutStore();
                   </span>
                 </label>
 
-                <label class="mount-editor damage-editor" title="可修改该挂点的实际伤害">
-                  <span class="mobile-field-label">伤害</span>
-                  <span class="sr-only">{{ row.label }}伤害</span>
-                  <InputNumber
-                    class="mount-number"
-                    :model-value="store.rowDamageValue(row.id)"
-                    :min="0"
-                    :max="1000000"
-                    :use-grouping="false"
-                    :max-fraction-digits="0"
-                    placeholder="—"
-                    @update:model-value="store.setRowDamage(row.id, $event)"
+                <div class="mount-row-tools">
+                  <span class="mount-row-damage">伤害 {{ store.rowDamageValue(row.id) ?? "—" }}</span>
+                  <span v-if="(store.rowQuantityValue(row.id) || 0) > 0" class="mount-row-condition">
+                    新增 {{ store.rowQuantityMode(row.id) === "exact" ? "=" : "≥" }}{{ store.rowQuantityValue(row.id) }}
+                  </span>
+                  <Button
+                    size="small"
+                    text
+                    severity="secondary"
+                    class="mount-row-detail-button"
+                    :label="expandedRows.has(row.id) ? '收起' : '调整'"
+                    :aria-expanded="expandedRows.has(row.id)"
+                    :aria-label="`${row.label}：${expandedRows.has(row.id) ? '收起' : '展开'}伤害和新增数量设置`"
+                    @click="toggleDetails(row.id)"
                   />
-                </label>
-
-                <div class="quantity-field">
-                  <span class="mobile-field-label">新增数量</span>
-                  <div class="quantity-editor">
-                    <Button
-                      title="= 恰好新增 N 枚；≥ 至少新增 N 枚。固定挂载不计入"
-                      class="quantity-mode-button"
-                      :label="store.rowQuantityMode(row.id) === 'exact' ? '=' : '≥'"
-                      severity="secondary"
-                      outlined
-                      :aria-label="`${row.label}数量条件，点击切换`"
-                      @click="store.toggleRowQuantityMode(row.id)"
-                    />
+                </div>
+                <div v-if="expandedRows.has(row.id)" class="mount-advanced">
+                  <label class="mount-editor damage-editor" title="修改单枚实际伤害，应用到同种武器各挂载预设">
+                    <span class="mount-advanced-label">单枚实际伤害</span>
                     <InputNumber
-                      class="quantity-input"
-                      :model-value="store.rowQuantityValue(row.id)"
+                      class="mount-number"
+                      :model-value="store.rowDamageValue(row.id)"
                       :min="0"
-                      :max="64"
+                      :max="1000000"
                       :use-grouping="false"
                       :max-fraction-digits="0"
-                      :aria-label="`${row.label}数量`"
-                      @update:model-value="store.setRowQuantity(row.id, $event)"
+                      placeholder="—"
+                      @update:model-value="store.setRowDamage(row.id, $event)"
                     />
+                  </label>
+                  <div class="quantity-field">
+                    <span class="mount-advanced-label">新增数量（固定挂载不计入）</span>
+                    <div class="quantity-editor">
+                      <Button
+                        title="= 恰好新增 N 枚；≥ 至少新增 N 枚。固定挂载不计入"
+                        class="quantity-mode-button"
+                        :label="store.rowQuantityMode(row.id) === 'exact' ? '=' : '≥'"
+                        severity="secondary"
+                        outlined
+                        :aria-label="`${row.label}数量条件，点击切换`"
+                        @click="store.toggleRowQuantityMode(row.id)"
+                      />
+                      <InputNumber
+                        class="quantity-input"
+                        :model-value="store.rowQuantityValue(row.id)"
+                        :min="0"
+                        :max="64"
+                        :use-grouping="false"
+                        :max-fraction-digits="0"
+                        :aria-label="`${row.label}新增数量`"
+                        @update:model-value="store.setRowQuantity(row.id, $event)"
+                      />
+                    </div>
                   </div>
                 </div>
               </article>
