@@ -73,8 +73,10 @@ export function solvePylonLoadout(input: SolverInput): Solution[] {
   const availableSlots = new Set(input.pylons.map((pylon) => pylon.slot));
   for (const key of Object.keys(fixed)) {
     const slot = Number(key);
-    if (!availableSlots.has(slot) || (input.allowedSlots.size > 0 && !input.allowedSlots.has(slot))) return [];
+    if (!availableSlots.has(slot)) return [];
     const optionId = fixed[slot];
+    // A station already excluded by the global limit may also be pinned empty.
+    if (optionId !== null && input.allowedSlots.size > 0 && !input.allowedSlots.has(slot)) return [];
     if (optionId != null && !input.pylons.find((pylon) => pylon.slot === slot)?.options
       .some((option) => option.option_id === optionId)) return [];
   }
