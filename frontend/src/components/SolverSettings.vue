@@ -1,6 +1,4 @@
 <script setup lang="ts">
-import Button from "primevue/button";
-import Checkbox from "primevue/checkbox";
 import InputNumber from "primevue/inputnumber";
 import {useLoadoutStore} from "../stores/loadout";
 
@@ -34,32 +32,6 @@ function setMaxOverkill(value: number | null): void {
       </label>
     </div>
 
-    <section v-if="store.options.length" class="settings-slots" aria-label="挂点限制">
-      <div class="settings-section-heading">
-        <div>
-          <strong>挂点限制</strong>
-          <small>{{ store.slotSummary }}</small>
-        </div>
-        <Button
-          v-if="store.allowedSlots.size"
-          label="清除限制"
-          text
-          size="small"
-          @click="store.clearSlotLimit"
-        />
-      </div>
-      <div class="slot-grid">
-        <label v-for="slot in store.availableSlots" :key="slot" class="slot-checkbox checkbox-with-label">
-          <Checkbox
-            binary
-            :model-value="store.allowedSlots.has(slot)"
-            :aria-label="`允许使用挂点 P${slot}`"
-            @update:model-value="store.toggleSlot(slot, Boolean($event))"
-          />
-          <span>P{{ slot }}</span>
-        </label>
-      </div>
-      <p class="settings-hint">选择后仅允许使用所选挂点；不选择表示不限。</p>
-    </section>
+
   </div>
 </template>
