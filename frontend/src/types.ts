@@ -21,6 +21,7 @@ export interface ApiOption {
   damage?: number | string | null;
   counted_base_damage?: number | string | null;
   weight_kg?: number | string | null;
+  icon_type?: string;
   required_option_ids?: string[];
   banned_option_ids?: string[];
   support?: boolean;
@@ -34,6 +35,7 @@ export interface PreparedOption extends Omit<
   damage: number | null;
   counted_base_damage: number;
   weight_kg: number;
+  weight_known: boolean;
   category: string;
   categoryLabel: string;
   subcategory: string | null;
@@ -84,6 +86,9 @@ export interface PreparedPylon {
   slot: number;
   options: PreparedOption[];
 }
+
+/** Missing slot = freely optimized; null = forcibly empty; string = exact preset. */
+export type FixedPylons = Record<number, string | null>;
 
 export interface QuantityConstraint {
   option_id?: string;
