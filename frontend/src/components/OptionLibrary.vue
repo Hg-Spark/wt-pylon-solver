@@ -64,7 +64,7 @@ const store = useLoadoutStore();
           <span>全部挂载</span>
         </label>
         <span>伤害</span>
-        <span>数量</span>
+        <span title="仅自由挂点的新增枚数，固定挂载不计入">新增数</span>
       </div>
 
       <section v-for="group in store.groupedRows" :key="group.key" class="tree-group">
@@ -133,9 +133,10 @@ const store = useLoadoutStore();
                 </label>
 
                 <div class="quantity-field">
-                  <span class="mobile-field-label">数量</span>
+                  <span class="mobile-field-label">新增数量</span>
                   <div class="quantity-editor">
                     <Button
+                      title="= 恰好新增 N 枚；≥ 至少新增 N 枚。固定挂载不计入"
                       class="quantity-mode-button"
                       :label="store.rowQuantityMode(row.id) === 'exact' ? '=' : '≥'"
                       severity="secondary"
