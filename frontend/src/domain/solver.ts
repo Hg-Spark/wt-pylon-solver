@@ -447,14 +447,19 @@ function normalizeOption(source: PreparedOption, input: SolverInput, fixed = fal
 
   const hasOverride = Object.prototype.hasOwnProperty.call(input.damageOverrides, optionId);
   const damage = hasOverride ? input.damageOverrides[optionId] : source.damage;
-  if (damage == null || !Number.isFinite(damage) || (damage <= 0 && !source.support)) return null;
+  if (damage == null || !Number.isFinite(damage)) {
+    if (!fixed) return null;
+  } else if (damage <= 0 && !source.support && !fixed) {
+    return null;
+  }
 
   const countedBaseDamage = source.counted_base_damage;
 
   return {
     source,
     optionId,
-    damage: Number(damage),
+    // A pinned non-bombing store must occupy its station even with no base damage.
+    damage: damage != null && Number.isFinite(damage) ? Math.max(0, Number(damage)) : 0,
     countedBaseDamage: Math.max(0, Number(countedBaseDamage)),
     count: source.count,
     weightKg: source.weight_kg,
