@@ -806,7 +806,7 @@ function selections(candidate: Candidate): Selection[] {
   const result: Selection[] = [];
   let current: Candidate | undefined = candidate;
   while (current) {
-    if (current.option && current.slot != null) result.push(toSelection(current.option));
+    if (current.option && current.slot != null) result.push(toSelection(current.option, current.slot));
     current = current.previous;
   }
   return result.reverse();
