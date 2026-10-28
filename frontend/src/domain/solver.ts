@@ -16,7 +16,6 @@ export interface SolverInput {
   top: number;
   maxOverkill: number;
   sortBy: SortBy;
-  allowedSlots: ReadonlySet<number>;
   allowedOptions: ReadonlySet<string> | null;
   damageOverrides: Readonly<Record<string, number>>;
   quantityConstraints: QuantityConstraint[];
@@ -75,14 +74,10 @@ export function solvePylonLoadout(input: SolverInput): Solution[] {
     const slot = Number(key);
     if (!availableSlots.has(slot)) return [];
     const optionId = fixed[slot];
-    // A station already excluded by the global limit may also be pinned empty.
-    if (optionId !== null && input.allowedSlots.size > 0 && !input.allowedSlots.has(slot)) return [];
     if (optionId != null && !input.pylons.find((pylon) => pylon.slot === slot)?.options
       .some((option) => option.option_id === optionId)) return [];
   }
-  const activePylons = input.pylons.filter((pylon) => (
-    input.allowedSlots.size === 0 || input.allowedSlots.has(pylon.slot)
-  )).sort((a, b) => a.slot - b.slot);
+  const activePylons = [...input.pylons].sort((a, b) => a.slot - b.slot);
   const optionsBySlot = activePylons.map((pylon) => pylon.options
     .filter((option) => !Object.prototype.hasOwnProperty.call(fixed, pylon.slot)
       || option.option_id === fixed[pylon.slot])
