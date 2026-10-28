@@ -217,7 +217,9 @@ export const useLoadoutStore = defineStore("loadout", () => {
         Object.entries(previousQuantitySettings).filter(([rowId]) => logicalRowIds.has(rowId)),
       );
       selectedOptions.value = new Set(options.value
-        .filter((option) => !option.support && option.damage != null && option.damage > 0)
+        .filter((option) => !option.support && option.damage != null && option.damage > 0
+          && (option.category === "bomb" || option.category === "rocket"
+            || (option.category === "missile" && option.subcategory !== "air_to_air")))
         .map((option) => option.option_id));
       availableSlots.value = [...new Set(pylons.value.map((pylon) => pylon.slot))].sort((left, right) => left - right);
       allowedSlots.value = new Set();
