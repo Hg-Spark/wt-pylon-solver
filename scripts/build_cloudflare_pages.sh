@@ -14,6 +14,7 @@ git clone --quiet --depth=1 --filter=blob:none --sparse \
 git -C "$datamine_root" sparse-checkout set --no-cone \
   "aces.vromfs.bin_u/gamedata/flightmodels" \
   "aces.vromfs.bin_u/gamedata/weapons" \
+  "atlases.vromfs.bin_u/gameuiskin" \
   "aces.vromfs.bin_u/gamedata/damage_model/explosive.blkx" \
   "char.vromfs.bin_u/config/wpcost.blkx" \
   "char.vromfs.bin_u/config/warpoints.blkx" \
@@ -24,6 +25,7 @@ python build_static_data.py --all --clean --datamine-root "$datamine_root"
 
 npm --prefix frontend install
 npm --prefix frontend run typecheck
+(cd frontend && node --experimental-strip-types --test tests/solver.test.mjs)
 npm --prefix frontend run build
 
 test -f dist/index.html
