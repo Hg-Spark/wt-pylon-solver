@@ -127,6 +127,20 @@ button:disabled { cursor: not-allowed; }
 .aircraft-control { display: flex; gap: 6px; min-width: 0; }
 .aircraft-input { min-width: 0; width: 100%; height: var(--control-h); }
 .load-button { flex: 0 0 auto; min-width: 62px; height: var(--control-h); }
+.library-aircraft-picker { flex: 1 1 300px; min-width: 0; display: grid; gap: 5px; }
+.library-aircraft-picker .library-aircraft-field { width: 100%; min-width: 0; }
+.aircraft-control .aircraft-autocomplete { flex: 1 1 auto; min-width: 0; width: 100%; }
+.aircraft-control .aircraft-autocomplete .p-autocomplete-input { width: 100%; min-width: 0; height: var(--control-h); }
+.aircraft-control .aircraft-autocomplete .p-autocomplete-dropdown { height: var(--control-h); flex: 0 0 32px; }
+.aircraft-option { display: flex; flex-wrap: wrap; gap: 2px 8px; align-items: baseline; min-width: 0; }
+.aircraft-option-name { font-size: 13px; font-weight: 700; }
+.aircraft-option small { color: var(--muted); font-size: 11px; overflow-wrap: anywhere; }
+.aircraft-recent-mark { margin-left: auto; color: var(--primary-dark); font-size: 10px; }
+.aircraft-recents { display: flex; flex-wrap: wrap; align-items: center; gap: 5px; }
+.aircraft-recents > span { color: var(--muted); font-size: 11px; }
+.aircraft-recents button { padding: 2px 7px; border: 1px solid var(--line); border-radius: 6px; background: var(--surface-soft); color: var(--muted-strong); font-size: 11px; }
+.aircraft-recents button:hover { border-color: var(--p-primary-300); color: var(--text); }
+.aircraft-search-error { margin: 0; color: var(--warning); font-size: 11px; }
 
 .option-groups { overflow: visible; margin-top: 10px; border: 1px solid var(--line); border-radius: 9px; background: var(--surface-soft); }
 .mount-list-header,
@@ -289,6 +303,7 @@ button:disabled { cursor: not-allowed; }
   .result-controls { grid-template-columns: minmax(0, 1fr) 68px minmax(96px, .8fr); width: 100%; justify-content: stretch; }
   .result-controls .button-solve { grid-column: 1 / -1; width: 100%; }
   .library-heading { flex-wrap: wrap; }
+  .library-aircraft-picker { flex-basis: 100%; width: 100%; }
   .library-aircraft-field { flex-basis: 100%; }
   .settings-popover-grid { grid-template-columns: 1fr; }
   .library-panel,
