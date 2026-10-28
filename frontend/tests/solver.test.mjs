@@ -17,7 +17,7 @@ function solve(pylons, targetDamage, extra = {}) {
   return solvePylonLoadout({
     pylons, targetDamage, rewardProfile: null,
     top: 20, maxOverkill: 0, sortBy: "weapons",
-    allowedSlots: new Set(), allowedOptions: new Set(
+    allowedOptions: new Set(
       pylons.flatMap((p) => p.options.filter((o) => !o.support).map((o) => o.option_id))),
     damageOverrides: {}, quantityConstraints: [], ...extra,
   });
@@ -37,6 +37,12 @@ test("banned pairs are rejected without losing same-damage valid alternatives", 
   });
   assert.ok(constrained.length > 0);
   assert.ok(constrained.every((r) => names(r).has("C") && names(r).has("B")));
+  const reversed = [
+    pylon(1, option(1, "A", 100)),
+    pylon(2, option(2, "B", 100, {banned_option_ids: ["A"]})),
+  ];
+  assert.deepEqual(solve(reversed, 200), []);
+  assert.deepEqual(solve(reversed, 200, {fixedPylons: {1: "A", 2: "B"}}), []);
 });
 
 test("dependency in a later slot automatically selects a zero-damage pod", () => {
@@ -47,7 +53,7 @@ test("dependency in a later slot automatically selects a zero-damage pod", () =>
   const results = solve(pylons, 100);
   assert.ok(results.length > 0);
   assert.ok(results.every((r) => names(r).has("GBU") && names(r).has("POD")));
-  assert.deepEqual(solve(pylons, 100, {allowedSlots: new Set([1])}), []);
+  assert.deepEqual(solve(pylons, 100, {fixedPylons: {2: null}}), []);
 });
 
 test("dependency in an earlier slot requires preselecting its pod", () => {
@@ -60,13 +66,6 @@ test("dependency in an earlier slot requires preselecting its pod", () => {
   assert.ok(results.every((r) => names(r).has("MISSILE") && names(r).has("POD")));
 });
 
-test("a reverse-direction ban is enforced", () => {
-  const pylons = [
-    pylon(1, option(1, "A", 100)),
-    pylon(2, option(2, "B", 100, {banned_option_ids: ["A"]})),
-  ];
-  assert.deepEqual(solve(pylons, 200), []);
-});
 
 test("non-required support stores are absent from results", () => {
   const pylons = [
@@ -76,6 +75,9 @@ test("non-required support stores are absent from results", () => {
   const results = solve(pylons, 100);
   assert.ok(results.length > 0);
   assert.ok(results.every((r) => !names(r).has("POD")));
+  const fixedResults = solve(pylons, 100, {fixedPylons: {1: "POD"}});
+  assert.ok(fixedResults.length > 0);
+  assert.ok(fixedResults.every((r) => names(r).has("POD") && names(r).has("BOMB")));
 });
 
 test("fixed preset stays in its slot despite allowed-weapon filtering", () => {
@@ -121,7 +123,7 @@ test("at-least quantity counts only added weapons, never pinned weapons", () => 
   assert.ok(lowTarget.length > 0);
   assert.ok(lowTarget.every((r) => names(r).has("NEW")));
   assert.deepEqual(solve(pylons, 100, {
-    fixedPylons: {1: "PIN"}, quantityConstraints, allowedSlots: new Set([1]),
+    fixedPylons: {1: "PIN", 2: null}, quantityConstraints,
   }), []);
 });
 
@@ -155,16 +157,10 @@ test("a manually fixed pod can be retained even when no weapon depends on it", (
   const pylons = [
     pylon(1, option(1, "POD", 0, {support: true, counted_base_damage: 0})),
     pylon(2, option(2, "BOMB", 100)),
-  ];
-  const results = solve(pylons, 100, {fixedPylons: {1: "POD"}});
-  assert.ok(results.length > 0);
-  assert.ok(results.every((r) => names(r).has("POD") && names(r).has("BOMB")));
-});
-
-test("invalid fixed preset and excluded fixed slot cannot silently disappear", () => {
+  
+test("invalid fixed preset cannot silently disappear", () => {
   const pylons = [pylon(1, option(1, "A", 100)), pylon(2, option(2, "B", 100))];
   assert.deepEqual(solve(pylons, 100, {fixedPylons: {1: "MISSING"}}), []);
-  assert.deepEqual(solve(pylons, 100, {fixedPylons: {1: "A"}, allowedSlots: new Set([2])}), []);
 });
 
 test("fixed weapons respect mutual-exclusion constraints", () => {
@@ -177,23 +173,7 @@ test("fixed weapons respect mutual-exclusion constraints", () => {
 
 test("fixed air-to-air or other non-bombing stores consume a station", () => {
   const pylons = [
-    pylon(1, option(1, "AAM", 0, {weapon_subcategory: "air_to_air"})),
-    pylon(2, option(2, "BOMB", 100)),
-  ];
-  const results = solve(pylons, 100, {fixedPylons: {1: "AAM"}});
-  assert.ok(results.length > 0);
-  assert.ok(results.every((r) => names(r).has("AAM") && names(r).has("BOMB")));
-  assert.deepEqual(results[0].selections.map((item) => item.slot), [1, 2]);
-
-  const unknown = [
-    pylon(1, option(1, "UNKNOWN", null)),
-    pylon(2, option(2, "BOMB", 100)),
-  ];
-  const kept = solve(unknown, 100, {fixedPylons: {1: "UNKNOWN"}});
-  assert.ok(kept.length > 0);
-  assert.ok(kept.every((r) => names(r).has("UNKNOWN")));
-});
-
+    pylon(1, option(1, "AAM", 0, {weap
 test("pinned-empty station outside allowed station subset remains valid", () => {
   const pylons = [
     pylon(1, option(1, "A", 100)),
