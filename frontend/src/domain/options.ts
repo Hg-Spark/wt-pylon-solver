@@ -46,6 +46,7 @@ export function buildOptionRows(options: PreparedOption[]): OptionRow[] {
   const groups = new Map<string, PreparedOption[]>();
 
   for (const option of options) {
+    if (option.support) continue;
     const key = logicalOptionKey(option);
     const bucket = groups.get(key);
     if (bucket) bucket.push(option);
