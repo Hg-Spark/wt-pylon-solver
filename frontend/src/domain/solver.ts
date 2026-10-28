@@ -161,10 +161,16 @@ function buildRelations(pylons: PreparedPylon[], optionsBySlot: EffectiveOption[
     for (const option of optionsBySlot[i]) {
       byId.set(option.optionId, option);
       slots.set(option.optionId, pylons[i].slot);
-      const required = option.source.required_option_ids || [];
-      const banned = option.source.banned_option_ids || [];
-      if (required.length || banned.length) relevant.add(option.optionId);
-      for (const id of [...required, ...banned]) relevant.add(id);
+    }
+  }
+  // Only relations between currently available options affect DP state identity.
+  for (const option of byId.values()) {
+    const required = option.source.required_option_ids || [];
+    const banned = option.source.banned_option_ids || [];
+    for (const id of [...required, ...banned]) {
+      if (!byId.has(id)) continue;
+      relevant.add(option.optionId);
+      relevant.add(id);
     }
   }
   return {byId, slots, relevant};
