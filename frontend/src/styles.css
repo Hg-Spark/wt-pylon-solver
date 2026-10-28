@@ -178,7 +178,6 @@ button:disabled { cursor: not-allowed; }
 .mount-advanced .damage-editor, .mount-advanced .mount-number, .mount-advanced .mount-number .p-inputnumber-input { width: 105px; }
 .mount-advanced .quantity-field, .mount-advanced .quantity-editor { width: auto; }
 
-.mobile-field-label { display: none; }
 .damage-editor { width: 62px; }
 .mount-number,
 .mount-number .p-inputnumber-input { width: 62px; }
