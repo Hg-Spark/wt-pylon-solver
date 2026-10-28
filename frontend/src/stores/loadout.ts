@@ -146,10 +146,10 @@ export const useLoadoutStore = defineStore("loadout", () => {
     const locked = Object.entries(fixed);
     for (const [key, optionId] of locked) {
       const slot = Number(key);
+      if (optionId == null) continue;
       if (allowedSlots.value.size && !allowedSlots.value.has(slot)) {
         return `P${slot} 已固定，但当前挂点限制不允许使用该位置。`;
       }
-      if (optionId == null) continue;
       const option = all.get(slot)?.options.find((item) => item.option_id === optionId);
       if (!option) return `P${slot} 的固定预设已失效。`;
       for (const requiredId of option.required_option_ids || []) {
