@@ -96,6 +96,8 @@ export interface QuantityConstraint {
 
 export interface Selection {
   option_id: string;
+  slot: number;
+  support?: boolean;
   weapon_id: string;
   weapon_display_name: string;
   count: number;
