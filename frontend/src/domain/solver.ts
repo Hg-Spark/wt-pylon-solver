@@ -37,10 +37,18 @@ interface Candidate {
   weaponCount: number;
   selectionCount: number;
   constraintCounts: Record<string, number>;
+  relationChoices: Record<number, string>;
+  relationKey: string;
   reward?: number | null;
   previous?: Candidate;
   slot?: number;
   option?: EffectiveOption;
+}
+
+interface Relations {
+  byId: Map<string, EffectiveOption>;
+  slots: Map<string, number>;
+  relevant: Set<string>;
 }
 
 interface ConstraintTarget {
@@ -65,6 +73,7 @@ export function solvePylonLoadout(input: SolverInput): Solution[] {
   const optionsBySlot = activePylons.map((pylon) => pylon.options
     .map((option) => normalizeOption(option, input))
     .filter((option): option is EffectiveOption => option !== null));
+  const relations = buildRelations(activePylons, optionsBySlot);
 
   let maxOptionDamage = 0;
   const maxDamageBySlot = optionsBySlot.map((options) => {
@@ -89,6 +98,8 @@ export function solvePylonLoadout(input: SolverInput): Solution[] {
     weaponCount: 0,
     selectionCount: 0,
     constraintCounts: initialCounts,
+    relationChoices: {},
+    relationKey: "",
   };
 
   const finalCandidates = constraints.targets.size === 0
@@ -101,6 +112,7 @@ export function solvePylonLoadout(input: SolverInput): Solution[] {
       searchLimit,
       input.sortBy,
       resultLimit,
+      relations,
     )
     : solveConstrained(
       initial,
@@ -113,10 +125,11 @@ export function solvePylonLoadout(input: SolverInput): Solution[] {
       constraintKeys,
       input.sortBy,
       resultLimit,
+      relations,
     );
 
   const solutions = filterDominatedSolutions(
-    finalCandidates,
+    finalCandidates.filter(supportsAreRequired),
     targetDamage,
     input.sortBy,
     input.rewardProfile,
@@ -138,6 +151,58 @@ export function solvePylonLoadout(input: SolverInput): Solution[] {
   return [...unique.values()]
     .slice(0, resultLimit)
     .map((candidate) => formatSolution(candidate, targetDamage, input.rewardProfile));
+}
+
+function buildRelations(pylons: PreparedPylon[], optionsBySlot: EffectiveOption[][]): Relations {
+  const byId = new Map<string, EffectiveOption>();
+  const slots = new Map<string, number>();
+  const relevant = new Set<string>();
+  for (let i = 0; i < pylons.length; i++) {
+    for (const option of optionsBySlot[i]) {
+      byId.set(option.optionId, option);
+      slots.set(option.optionId, pylons[i].slot);
+      const required = option.source.required_option_ids || [];
+      const banned = option.source.banned_option_ids || [];
+      if (required.length || banned.length) relevant.add(option.optionId);
+      for (const id of [...required, ...banned]) relevant.add(id);
+    }
+  }
+  return {byId, slots, relevant};
+}
+
+function isCompatible(
+  candidate: Candidate,
+  slot: number,
+  option: EffectiveOption | null,
+  relations: Relations,
+): boolean {
+  const id = option?.optionId;
+  for (const priorId of Object.values(candidate.relationChoices)) {
+    const prior = relations.byId.get(priorId);
+    if (prior?.source.required_option_ids?.some((requiredId) =>
+      relations.slots.get(requiredId) === slot && requiredId !== id)) return false;
+    if (id && (prior?.source.banned_option_ids?.includes(id)
+      || option?.source.banned_option_ids?.includes(priorId))) return false;
+  }
+  if (!option) return true;
+  for (const requiredId of option.source.required_option_ids || []) {
+    const requiredSlot = relations.slots.get(requiredId);
+    if (requiredSlot == null) return false;
+    if (requiredSlot === slot && requiredId !== id) return false;
+    if (requiredSlot < slot && candidate.relationChoices[requiredSlot] !== requiredId) return false;
+  }
+  return true;
+}
+
+function supportsAreRequired(candidate: Candidate): boolean {
+  const used = new Set<string>();
+  const required = new Set<string>();
+  for (let current: Candidate | undefined = candidate; current; current = current.previous) {
+    if (!current.option) continue;
+    if (current.option.source.support) used.add(current.option.optionId);
+    for (const id of current.option.source.required_option_ids || []) required.add(id);
+  }
+  return [...used].every((id) => required.has(id));
 }
 
 function buildConstraints(quantityConstraints: QuantityConstraint[]): ConstraintSet {
@@ -189,9 +254,10 @@ function solveUnconstrained(
   searchLimit: number,
   sortBy: SortBy,
   stateLimit: number,
+  relations: Relations,
 ): Candidate[] {
   let states = new Map<string, Candidate[]>();
-  states.set(stateKeyForSort(0, 0, sortBy), [initial]);
+  states.set(stateKeyForSort(0, 0, sortBy, ""), [initial]);
 
   for (let index = 0; index < activePylons.length; index += 1) {
     const pylon = activePylons[index];
@@ -205,19 +271,21 @@ function solveUnconstrained(
     for (const [key, candidates] of states) {
       const stateDamage = candidates[0]?.damage ?? 0;
       if (stateDamage >= targetDamage || stateDamage + remainingMaxDamage >= targetDamage) {
-        nextStates.set(key, candidates);
+        const compatible = candidates.filter((candidate) => isCompatible(candidate, pylon.slot, null, relations));
+        if (compatible.length) nextStates.set(key, compatible);
       }
     }
 
     for (const candidates of states.values()) {
       for (const candidate of candidates) {
         for (const option of options) {
+          if (!isCompatible(candidate, pylon.slot, option, relations)) continue;
           const damage = candidate.damage + option.damage;
           if (damage > searchLimit) continue;
           if (damage < targetDamage && damage + remainingMaxDamage < targetDamage) continue;
 
-          const nextCandidate = extendCandidate(candidate, pylon.slot, option, candidate.constraintCounts);
-          const nextKey = stateKeyForSort(damage, nextCandidate.countedBaseDamage, sortBy);
+          const nextCandidate = extendCandidate(candidate, pylon.slot, option, candidate.constraintCounts, relations);
+          const nextKey = stateKeyForSort(damage, nextCandidate.countedBaseDamage, sortBy, nextCandidate.relationKey);
           nextStates.set(
             nextKey,
             insertStateCandidate(
@@ -253,9 +321,10 @@ function solveConstrained(
   constraintKeys: string[],
   sortBy: SortBy,
   stateLimit: number,
+  relations: Relations,
 ): Candidate[] {
   let states = new Map<string, Candidate[]>();
-  states.set(stateKey(0, 0, initial.constraintCounts, constraintKeys, sortBy), [initial]);
+  states.set(stateKey(0, 0, initial.constraintCounts, constraintKeys, sortBy, ""), [initial]);
 
   for (let index = 0; index < activePylons.length; index += 1) {
     const pylon = activePylons[index];
@@ -266,13 +335,15 @@ function solveConstrained(
     for (const [key, candidates] of states) {
       const stateDamage = candidates[0]?.damage ?? 0;
       if (stateDamage >= targetDamage || stateDamage + remainingMaxDamage >= targetDamage) {
-        nextStates.set(key, candidates);
+        const compatible = candidates.filter((candidate) => isCompatible(candidate, pylon.slot, null, relations));
+        if (compatible.length) nextStates.set(key, compatible);
       }
     }
 
     for (const candidates of states.values()) {
       for (const candidate of candidates) {
         for (const option of options) {
+          if (!isCompatible(candidate, pylon.slot, option, relations)) continue;
           const nextCounts = nextConstraintCounts(candidate.constraintCounts, option, constraints);
           if (!nextCounts) continue;
 
@@ -280,13 +351,14 @@ function solveConstrained(
           if (damage > searchLimit) continue;
           if (damage < targetDamage && damage + remainingMaxDamage < targetDamage) continue;
 
-          const nextCandidate = extendCandidate(candidate, pylon.slot, option, nextCounts);
+          const nextCandidate = extendCandidate(candidate, pylon.slot, option, nextCounts, relations);
           const nextKey = stateKey(
             damage,
             nextCandidate.countedBaseDamage,
             nextCounts,
             constraintKeys,
             sortBy,
+            nextCandidate.relationKey,
           );
           nextStates.set(
             nextKey,
@@ -319,8 +391,14 @@ function extendCandidate(
   slot: number,
   option: EffectiveOption,
   constraintCounts: Record<string, number>,
+  relations: Relations,
 ): Candidate {
+  const related = relations.relevant.has(option.optionId);
   return {
+    relationChoices: related
+      ? {...candidate.relationChoices, [slot]: option.optionId}
+      : candidate.relationChoices,
+    relationKey: related ? `${candidate.relationKey}|${slot}:${option.optionId}` : candidate.relationKey,
     damage: candidate.damage + option.damage,
     countedBaseDamage: candidate.countedBaseDamage + option.countedBaseDamage,
     weightKg: candidate.weightKg + option.weightKg,
@@ -336,11 +414,11 @@ function extendCandidate(
 function normalizeOption(source: PreparedOption, input: SolverInput): EffectiveOption | null {
   const optionId = String(source.option_id || "");
   if (!optionId) return null;
-  if (input.allowedOptions && !input.allowedOptions.has(optionId)) return null;
+  if (input.allowedOptions && !input.allowedOptions.has(optionId) && !source.support) return null;
 
   const hasOverride = Object.prototype.hasOwnProperty.call(input.damageOverrides, optionId);
   const damage = hasOverride ? input.damageOverrides[optionId] : source.damage;
-  if (damage == null || !Number.isFinite(damage) || damage <= 0) return null;
+  if (damage == null || !Number.isFinite(damage) || (damage <= 0 && !source.support)) return null;
 
   const countedBaseDamage = source.counted_base_damage;
 
@@ -384,8 +462,9 @@ function constraintsSatisfied(
   return true;
 }
 
-function stateKeyForSort(damage: number, countedBaseDamage: number, sortBy: SortBy): string {
-  return sortBy === "high_yield" ? `${damage}|${countedBaseDamage}` : String(damage);
+function stateKeyForSort(damage: number, countedBaseDamage: number, sortBy: SortBy, relationKey: string): string {
+  const base = sortBy === "high_yield" ? `${damage}|${countedBaseDamage}` : String(damage);
+  return `${base}|${relationKey}`;
 }
 
 function stateKey(
@@ -394,8 +473,9 @@ function stateKey(
   counts: Record<string, number>,
   constraintKeys: string[],
   sortBy: SortBy,
+  relationKey: string,
 ): string {
-  let key = `${stateKeyForSort(damage, countedBaseDamage, sortBy)}|`;
+  let key = `${stateKeyForSort(damage, countedBaseDamage, sortBy, relationKey)}|`;
   for (let index = 0; index < constraintKeys.length; index += 1) {
     if (index > 0) key += ",";
     const constraintKey = constraintKeys[index];
