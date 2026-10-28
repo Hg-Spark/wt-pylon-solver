@@ -22,6 +22,7 @@ export function prepareOption(option: ApiOption): PreparedOption {
     damage,
     counted_base_damage: countedBaseDamage,
     weight_kg: weightKg,
+    weight_known: option.weight_kg != null && option.weight_kg !== "" && Number.isFinite(Number(option.weight_kg)),
     category,
     categoryLabel: categoryLabel(category),
     subcategory,
