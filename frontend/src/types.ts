@@ -21,6 +21,9 @@ export interface ApiOption {
   damage?: number | string | null;
   counted_base_damage?: number | string | null;
   weight_kg?: number | string | null;
+  required_option_ids?: string[];
+  banned_option_ids?: string[];
+  support?: boolean;
 }
 
 export interface PreparedOption extends Omit<
