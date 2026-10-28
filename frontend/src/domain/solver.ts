@@ -749,9 +749,11 @@ function calculateReward(
   ) * (profile.is_fighter ? profile.fighter_bombing_reward_mul : 1);
 }
 
-function toSelection(option: EffectiveOption): Selection {
+function toSelection(option: EffectiveOption, slot: number): Selection {
   return {
     option_id: option.optionId,
+    slot,
+    support: option.source.support || undefined,
     weapon_id: option.source.weapon_id,
     weapon_display_name: option.source.displayName,
     count: option.count,
