@@ -93,8 +93,8 @@ function toggleDetails(rowId: string): void {
       </div>
 
       <div class="library-aircraft-picker">
-        <label class="library-aircraft-field" for="aircraftId">
-          <span>选择飞机</span>
+        <div class="library-aircraft-field">
+          <label for="aircraftId">选择飞机</label>
           <span class="aircraft-control">
             <AutoComplete
               input-id="aircraftId"
@@ -131,7 +131,7 @@ function toggleDetails(rowId: string): void {
               @click="loadTypedAircraft"
             />
           </span>
-        </label>
+        </div>
         <div v-if="recentAircraft().length" class="aircraft-recents">
           <span>最近</span>
           <button v-for="item in recentAircraft()" :key="item.id" type="button"
