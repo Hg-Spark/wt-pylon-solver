@@ -43,8 +43,6 @@ export const useLoadoutStore = defineStore("loadout", () => {
 
   const options = ref<PreparedOption[]>([]);
   const pylons = ref<PreparedPylon[]>([]);
-  const availableSlots = ref<number[]>([]);
-  const allowedSlots = ref<Set<number>>(new Set());
   const selectedOptions = ref<Set<string>>(new Set());
   const damageOverrides = ref<Record<string, number>>({});
   const quantitySettings = ref<Record<string, RowQuantitySetting>>({});
@@ -107,10 +105,6 @@ export const useLoadoutStore = defineStore("loadout", () => {
   const allRowsSelected = computed(() => allRows.value.length > 0 && allRows.value.every((row) => isRowSelected(row)));
   const selectedRowCount = computed(() => allRows.value.filter((row) => isRowSelected(row)).length);
   const allRowsPartiallySelected = computed(() => selectedOptions.value.size > 0 && !allRowsSelected.value);
-  const slotSummary = computed(() => {
-    const selected = availableSlots.value.filter((slot) => allowedSlots.value.has(slot));
-    return selected.length ? `已选 ${selected.length}/${availableSlots.value.length} 个挂点` : "不限挂点";
-  });
   const optionById = computed(() => new Map(options.value.map((option) => [option.option_id, option])));
   const initialSummary = computed(() => {
     let damage = 0;
@@ -147,9 +141,6 @@ export const useLoadoutStore = defineStore("loadout", () => {
     for (const [key, optionId] of locked) {
       const slot = Number(key);
       if (optionId == null) continue;
-      if (allowedSlots.value.size && !allowedSlots.value.has(slot)) {
-        return `P${slot} 已固定，但当前挂点限制不允许使用该位置。`;
-      }
       const option = all.get(slot)?.options.find((item) => item.option_id === optionId);
       if (!option) return `P${slot} 的固定预设已失效。`;
       for (const requiredId of option.required_option_ids || []) {
@@ -186,8 +177,6 @@ export const useLoadoutStore = defineStore("loadout", () => {
     loadedAircraft.value = null;
     options.value = [];
     pylons.value = [];
-    availableSlots.value = [];
-    allowedSlots.value = new Set();
     selectedOptions.value = new Set();
     fixedPylons.value = {};
     collapsedGroups.value = new Set();
@@ -221,9 +210,7 @@ export const useLoadoutStore = defineStore("loadout", () => {
           && (option.category === "bomb" || option.category === "rocket"
             || (option.category === "missile" && option.subcategory !== "air_to_air")))
         .map((option) => option.option_id));
-      availableSlots.value = [...new Set(pylons.value.map((pylon) => pylon.slot))].sort((left, right) => left - right);
-      allowedSlots.value = new Set();
-      status.value = "ready";
+        status.value = "ready";
     } catch (error) {
       if (requestId !== loadRequestId || controller.signal.aborted) return;
       clearLoadedAircraft();
@@ -258,7 +245,6 @@ export const useLoadoutStore = defineStore("loadout", () => {
         top: safeInteger(top.value, 10, 1),
         maxOverkill: safeInteger(maxOverkill.value, 5000, 0),
         sortBy: sortBy.value,
-        allowedSlots: new Set(allowedSlots.value),
         allowedOptions: new Set(selectedOptions.value),
         damageOverrides: {...damageOverrides.value},
         quantityConstraints: quantityConstraintEntries.value.map(cloneQuantityConstraint),
@@ -465,17 +451,6 @@ export const useLoadoutStore = defineStore("loadout", () => {
     fixedPylons.value = next;
   }
 
-  function clearSlotLimit(): void {
-    allowedSlots.value = new Set();
-  }
-
-  function toggleSlot(slot: number, checked: boolean): void {
-    const next = new Set(allowedSlots.value);
-    if (checked) next.add(slot);
-    else next.delete(slot);
-    allowedSlots.value = next;
-  }
-
   function invalidateResult(): void {
     const wasSolving = status.value === "solving";
     solveRequestId += 1;
@@ -491,8 +466,6 @@ export const useLoadoutStore = defineStore("loadout", () => {
     loadedAircraft.value = null;
     options.value = [];
     pylons.value = [];
-    availableSlots.value = [];
-    allowedSlots.value = new Set();
     selectedOptions.value = new Set();
     damageOverrides.value = {};
     quantitySettings.value = {};
@@ -514,7 +487,6 @@ export const useLoadoutStore = defineStore("loadout", () => {
       top,
       maxOverkill,
       sortBy,
-      allowedSlots,
       selectedOptions,
       damageOverrides,
       quantityConstraintSignature,
@@ -533,8 +505,6 @@ export const useLoadoutStore = defineStore("loadout", () => {
     sortBy,
     options,
     pylons,
-    availableSlots,
-    allowedSlots,
     selectedOptions,
     damageOverrides,
     quantitySettings,
@@ -554,7 +524,6 @@ export const useLoadoutStore = defineStore("loadout", () => {
     allRowsSelected,
     allRowsPartiallySelected,
     selectedRowCount,
-    slotSummary,
     loadOptions,
     solve,
     toggleRowSelection,
@@ -573,8 +542,6 @@ export const useLoadoutStore = defineStore("loadout", () => {
     toggleRowQuantityMode,
     setRowQuantity,
     toggleGroup,
-    clearSlotLimit,
-    toggleSlot,
     setFixedPylon,
     useSolutionAsInitial,
   };
