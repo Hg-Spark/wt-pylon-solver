@@ -1,12 +1,5 @@
 import type {Selection, Solution} from "../types";
 
-export interface GroupedSelection {
-  key: string;
-  name: string;
-  totalCount: number;
-  damage: number;
-}
-
 export function safeInteger(value: number, fallback: number, minimum: number): number {
   return Number.isInteger(Number(value)) && Number(value) >= minimum ? Number(value) : fallback;
 }
@@ -34,31 +27,6 @@ export function loadoutText(solution: Solution): string {
     .join(" · ") || "未读取挂载组合";
 }
 
-export function groupSolutionSelections(selections: Selection[] | undefined): GroupedSelection[] {
-  const groups = new Map<string, GroupedSelection>();
-
-  for (const selection of selections || []) {
-    const key = selectionGroupKey(selection);
-    const count = Math.max(1, Number(selection.count || 1));
-    const damage = Number(selection.damage || 0);
-    const existing = groups.get(key);
-    if (existing) {
-      existing.totalCount += count;
-      existing.damage += damage;
-      continue;
-    }
-
-    groups.set(key, {
-      key,
-      name: selectionName(selection),
-      totalCount: count,
-      damage,
-    });
-  }
-
-  return [...groups.values()];
-}
-
 function selectionGroupKey(selection: Selection): string {
   return String(
     selection.weapon_id
@@ -66,8 +34,3 @@ function selectionGroupKey(selection: Selection): string {
       || "unknown",
   );
 }
-
-function selectionName(selection: Selection): string {
-  return selection.weapon_display_name || selection.weapon_id || "未知挂载";
-}
-
