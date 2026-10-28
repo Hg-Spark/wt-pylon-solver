@@ -22,11 +22,12 @@ git -C "$datamine_root" sparse-checkout set --no-cone \
   "lang.vromfs.bin_u/lang/units_weaponry.csv"
 
 python -m pip install -r requirements.txt
+python -m unittest discover -s tests -p 'test_*.py'
 python build_static_data.py --all --clean --datamine-root "$datamine_root"
 
 npm --prefix frontend install
 npm --prefix frontend run typecheck
-(cd frontend && node --experimental-strip-types --test tests/solver.test.mjs)
+(cd frontend && node --experimental-strip-types --test tests/*.test.mjs)
 npm --prefix frontend run build
 
 test -f dist/index.html
