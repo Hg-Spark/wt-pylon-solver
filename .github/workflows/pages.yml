@@ -37,6 +37,7 @@ jobs:
           sparse-checkout: |
             aces.vromfs.bin_u/gamedata/flightmodels
             aces.vromfs.bin_u/gamedata/weapons
+            atlases.vromfs.bin_u/gameuiskin
             aces.vromfs.bin_u/gamedata/damage_model/explosive.blkx
             char.vromfs.bin_u/config/wpcost.blkx
             char.vromfs.bin_u/config/warpoints.blkx
