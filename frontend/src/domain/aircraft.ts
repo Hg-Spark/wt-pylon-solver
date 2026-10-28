@@ -50,10 +50,10 @@ export function updatedRecentAircraft(existing: readonly string[], id: string): 
 
 export function readRecentAircraft(): string[] {
   if (typeof document === "undefined") return [];
-  const match = document.cookie.split(";").map((part) => part.trim())
-    .find((part) => part.startsWith(`${RECENT_COOKIE}=`));
-  if (!match) return [];
   try {
+    const match = document.cookie.split(";").map((part) => part.trim())
+      .find((part) => part.startsWith(`${RECENT_COOKIE}=`));
+    if (!match) return [];
     const value: unknown = JSON.parse(decodeURIComponent(match.slice(RECENT_COOKIE.length + 1)));
     if (!Array.isArray(value)) return [];
     const result: string[] = [];
@@ -71,7 +71,11 @@ export function saveRecentAircraft(id: string, existing: readonly string[]): str
   const next = updatedRecentAircraft(existing, id);
   if (typeof document !== "undefined") {
     const secure = document.location.protocol === "https:" ? "; Secure" : "";
-    document.cookie = `${RECENT_COOKIE}=${encodeURIComponent(JSON.stringify(next))}; Path=/; Max-Age=15552000; SameSite=Lax${secure}`;
+    try {
+      document.cookie = `${RECENT_COOKIE}=${encodeURIComponent(JSON.stringify(next))}; Path=/; Max-Age=15552000; SameSite=Lax${secure}`;
+    } catch {
+      // Browsers that block cookies still retain the in-session recent list.
+    }
   }
   return next;
 }
