@@ -67,6 +67,10 @@ jobs:
         working-directory: frontend
         run: npm run typecheck
 
+      - name: Test pylon constraints
+        working-directory: frontend
+        run: node --experimental-strip-types --test tests/solver.test.mjs
+
       - name: Build static site
         working-directory: frontend
         run: npm run build
