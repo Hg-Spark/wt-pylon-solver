@@ -367,24 +367,16 @@ def _build_option(
     classification = _classify_weapon(identity_leaves)
     official_map = custom_map.get((slot_index, preset_name), {})
 
-    formula_damage = _formula_damage_summary(identity_leaves, explosive_types, damage_curve)
     counted_base_damage = _official_counted_damage(official_map, wpcost_weapons)
 
-    # Actual payload damage and whether the game counts that payload toward base
-    # damage are separate concepts.  Actual damage comes from the official
-    # explosiveMassToDamage curve even for weapons omitted from custom_presets
-    # (KH-29/KH-38/AGM-130 are examples).
-    if formula_damage is not None and formula_damage > 0:
-        damage = formula_damage
-    else:
-        leaf_damage = _official_leaf_damage(identity_leaves, wpcost_weapons)
-        preset_damage = _official_preset_damage(preset_name, wpcost_weapons)
-        if leaf_damage is not None and leaf_damage > 0:
-            damage = leaf_damage
-        elif preset_damage is not None and preset_damage > 0:
-            damage = preset_damage
-        else:
-            damage = None
+    # Prefer complete official weaponDamage values; estimate only as a fallback.
+    damage = _official_mapped_damage(official_map, identity_leaves, wpcost_weapons)
+    if damage is None:
+        damage = _official_leaf_damage(identity_leaves, wpcost_weapons)
+    if damage is None:
+        damage = _official_preset_damage(preset_name, wpcost_weapons)
+    if damage is None:
+        damage = _formula_damage_summary(identity_leaves, explosive_types, damage_curve)
     weight_kg = _official_mapped_mass(official_map, wpcost_weapons)
     if weight_kg is None:
         weight_kg = _leaf_total_mass(identity_leaves)
@@ -522,6 +514,34 @@ def _official_counted_damage(
             return float(value) * max(int(amount), 0)
         return 0.0
     return 0.0
+
+
+def _official_mapped_damage(
+    mapping: Mapping[str, int],
+    leaves: Sequence[LeafWeapon],
+    wpcost_weapons: Mapping[str, Any],
+) -> Optional[float]:
+    if not mapping:
+        return None
+
+    # custom_presets may omit payloads, so require an exact count match.
+    matched_counts: Dict[str, int] = {}
+    for leaf in leaves:
+        key = next((key for key in _candidate_wpcost_keys_for_leaf(leaf) if key in mapping), None)
+        if key is None:
+            return None
+        matched_counts[key] = matched_counts.get(key, 0) + leaf.count
+    if matched_counts != mapping:
+        return None
+
+    total = 0.0
+    for key, count in mapping.items():
+        info = wpcost_weapons.get(key)
+        value = info.get("weaponDamage") if isinstance(info, dict) else None
+        if not isinstance(value, (int, float)) or value <= 0:
+            return None
+        total += float(value) * count
+    return total
 
 
 def _official_preset_damage(preset_name: str, wpcost_weapons: Mapping[str, Any]) -> Optional[float]:
