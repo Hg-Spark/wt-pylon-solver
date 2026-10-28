@@ -1,13 +1,78 @@
 <script setup lang="ts">
-import {ref} from "vue";
+import {onMounted, ref} from "vue";
+import AutoComplete from "primevue/autocomplete";
 import Button from "primevue/button";
 import Checkbox from "primevue/checkbox";
 import InputNumber from "primevue/inputnumber";
-import InputText from "primevue/inputtext";
+import {fetchAircraftIndex} from "../services/api";
+import {aircraftLabel, normalizeAircraftSearch, readRecentAircraft, saveRecentAircraft, searchAircraft} from "../domain/aircraft";
+import type {AircraftIndexItem} from "../types";
 import {useLoadoutStore} from "../stores/loadout";
 
 const store = useLoadoutStore();
 const expandedRows = ref<Set<string>>(new Set());
+const aircraftIndex = ref<AircraftIndexItem[]>([]);
+const aircraftSuggestions = ref<AircraftIndexItem[]>([]);
+const aircraftInput = ref<AircraftIndexItem | string | null>(store.aircraft);
+const recentIds = ref<string[]>(readRecentAircraft());
+const aircraftSearchError = ref("");
+
+onMounted(async () => {
+  try {
+    aircraftIndex.value = await fetchAircraftIndex();
+    if (aircraftInput.value === store.aircraft) {
+      aircraftInput.value = aircraftIndex.value.find((item) => item.id === store.aircraft) || store.aircraft;
+    }
+  } catch (error) {
+    aircraftSearchError.value = error instanceof Error ? error.message : "无法加载飞机目录。";
+  }
+});
+
+function completeAircraft(event: {query: string}): void {
+  aircraftSuggestions.value = searchAircraft(aircraftIndex.value, event.query, recentIds.value);
+}
+
+function recentAircraft(): AircraftIndexItem[] {
+  const byId = new Map(aircraftIndex.value.map((item) => [item.id, item]));
+  return recentIds.value.map((id) => byId.get(id)).filter((item): item is AircraftIndexItem => item !== undefined).slice(0, 5);
+}
+
+async function loadAircraft(id: string): Promise<void> {
+  aircraftSearchError.value = "";
+  if (store.loadedAircraft !== id) {
+    store.aircraft = id;
+    await store.loadOptions();
+  }
+  if (store.loadedAircraft === id) {
+    recentIds.value = saveRecentAircraft(id, recentIds.value);
+    aircraftInput.value = aircraftIndex.value.find((item) => item.id === id) || id;
+  }
+}
+
+function selectAircraft(event: {value: AircraftIndexItem}): void {
+  void loadAircraft(event.value.id);
+}
+
+function loadTypedAircraft(): void {
+  if (aircraftInput.value && typeof aircraftInput.value === "object") {
+    void loadAircraft(aircraftInput.value.id);
+    return;
+  }
+  const input = String(aircraftInput.value || "").trim();
+  const normalized = normalizeAircraftSearch(input);
+  const exact = aircraftIndex.value.find((item) =>
+    item.id.toLowerCase() === input.toLowerCase()
+    || normalizeAircraftSearch(item.zh) === normalized
+    || normalizeAircraftSearch(item.en) === normalized);
+  if (exact) {
+    void loadAircraft(exact.id);
+  } else if (/^[a-z0-9_-]+$/i.test(input)) {
+    void loadAircraft(input.toLowerCase());
+  } else {
+    aircraftSearchError.value = "请从搜索结果中选择飞机，或输入完整 Datamine ID。";
+  }
+}
+
 
 function toggleDetails(rowId: string): void {
   const next = new Set(expandedRows.value);
@@ -27,32 +92,60 @@ function toggleDetails(rowId: string): void {
         <p v-if="store.options.length">已启用 {{ store.selectedRowCount }} / {{ store.allRows.length }} 种</p>
       </div>
 
-      <label class="library-aircraft-field" for="aircraftId">
-        <span>飞机 ID</span>
-        <span class="aircraft-control">
-          <InputText
-            id="aircraftId"
-            v-model="store.aircraft"
-            class="aircraft-input"
-            placeholder="例如 su_34 / f_15e"
-            autocomplete="off"
-            @keydown.enter.prevent="store.loadOptions"
-          />
-          <Button
-            class="load-button"
-            :label="store.status === 'loading' ? '切换' : '加载'"
-            severity="secondary"
-            outlined
-            :disabled="store.status === 'solving'"
-            @click="store.loadOptions"
-          />
-        </span>
-      </label>
+      <div class="library-aircraft-picker">
+        <label class="library-aircraft-field" for="aircraftId">
+          <span>选择飞机</span>
+          <span class="aircraft-control">
+            <AutoComplete
+              input-id="aircraftId"
+              v-model="aircraftInput"
+              class="aircraft-autocomplete"
+              :suggestions="aircraftSuggestions"
+              :option-label="aircraftLabel"
+              :min-length="0"
+              :delay="0"
+              complete-on-focus
+              dropdown
+              dropdown-mode="blank"
+              append-to="body"
+              scroll-height="280px"
+              placeholder="名称或 Datamine ID"
+              :disabled="store.status === 'solving'"
+              @complete="completeAircraft"
+              @item-select="selectAircraft"
+            >
+              <template #option="{option}">
+                <div class="aircraft-option">
+                  <span class="aircraft-option-name">{{ aircraftLabel(option) }}</span>
+                  <small>{{ option.en && option.en !== aircraftLabel(option) ? option.en + " · " : "" }}{{ option.id }}</small>
+                  <span v-if="recentIds.includes(option.id)" class="aircraft-recent-mark">最近</span>
+                </div>
+              </template>
+            </AutoComplete>
+            <Button
+              class="load-button"
+              :label="store.status === 'loading' ? '加载中' : '加载'"
+              severity="secondary"
+              outlined
+              :disabled="store.isBusy"
+              @click="loadTypedAircraft"
+            />
+          </span>
+        </label>
+        <div v-if="recentAircraft().length" class="aircraft-recents">
+          <span>最近</span>
+          <button v-for="item in recentAircraft()" :key="item.id" type="button"
+            :disabled="store.isBusy" :title="item.id" @click="loadAircraft(item.id)">
+            {{ aircraftLabel(item) }}
+          </button>
+        </div>
+        <p v-if="aircraftSearchError" class="aircraft-search-error">{{ aircraftSearchError }}</p>
+      </div>
     </div>
 
     <div v-if="!store.options.length" class="library-empty">
       <strong>{{ store.status === "loading" ? "正在加载挂载数据" : "还没有挂载数据" }}</strong>
-      <p>{{ store.status === "loading" ? "可以修改飞机 ID 并再次点击“切换”。" : "在挂载库输入飞机 ID 并加载。" }}</p>
+      <p>{{ store.status === "loading" ? "正在读取选中的飞机挂载数据。" : "通过名称、型号或 Datamine ID 搜索并选择飞机。" }}</p>
     </div>
 
     <div v-else-if="!store.groupedRows.length" class="library-empty">
