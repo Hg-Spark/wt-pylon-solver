@@ -26,7 +26,9 @@ npm install
 npm run dev
 ```
 
-`frontend/public/data/*.json` 是生成物，不提交到 Git。
+`frontend/public/data/*.json` 是生成物，不提交到 Git。构建还会生成 `data/aircraft-index.json`：只包含成功生成的飞机 ID，以及从 Datamine `lang/units.csv` 读取的中英文名称。
+
+飞机选择支持中文、英文和 Datamine ID 搜索；可以直接输入完整 ID 作为回退。最近 8 次成功加载的飞机 ID 保存在站点的第一方 Cookie（`wt_recent_aircraft`，有效期 180 天），不记录挂载配置或搜索历史，清除浏览器 Cookie 后即清空。
 
 ## 本地完整构建
 
@@ -37,7 +39,7 @@ python build_static_data.py --all --clean --datamine-root /path/to/War-Thunder-D
 cd frontend
 npm install
 npm run typecheck
-node --experimental-strip-types --test tests/solver.test.mjs
+node --experimental-strip-types --test tests/*.test.mjs
 npm run build
 ```
 
