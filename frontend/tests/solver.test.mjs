@@ -193,3 +193,15 @@ test("fixed air-to-air or other non-bombing stores consume a station", () => {
   assert.ok(kept.length > 0);
   assert.ok(kept.every((r) => names(r).has("UNKNOWN")));
 });
+
+test("pinned-empty station outside allowed station subset remains valid", () => {
+  const pylons = [
+    pylon(1, option(1, "A", 100)),
+    pylon(2, option(2, "B", 100)),
+  ];
+  const results = solve(pylons, 100, {
+    allowedSlots: new Set([2]), fixedPylons: {1: null},
+  });
+  assert.ok(results.length > 0);
+  assert.ok(results.every((result) => !names(result).has("A") && names(result).has("B")));
+});
