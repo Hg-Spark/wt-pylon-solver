@@ -8,7 +8,12 @@ import Select from "primevue/select";
 import {groupSolutionSelections, solutionId} from "../domain/loadout";
 import {formatNumber} from "../utils/format";
 import {useLoadoutStore} from "../stores/loadout";
-import type {Solution, SortBy} from "../types";
+import type {Selection, Solution, SortBy} from "../types";
+
+interface MountStation {
+  slot: number;
+  selection: Selection | null;
+}
 
 interface ResultRow {
   id: string;
@@ -23,6 +28,7 @@ interface ResultRow {
 
 const store = useLoadoutStore();
 const expandedRows = ref<Record<string, boolean>>({});
+const selectedRowId = ref<string | null>(null);
 
 const sortOptions: Array<{label: string; value: SortBy}> = [
   {label: "高收益", value: "high_yield"},
@@ -44,10 +50,30 @@ const resultRows = computed<ResultRow[]>(() => (
 ));
 
 const resultCount = computed(() => resultRows.value.length);
+const activeRow = computed(() => (
+  resultRows.value.find((row) => row.id === selectedRowId.value) || resultRows.value[0] || null
+));
+const mountStations = computed<MountStation[]>(() => {
+  const selections = activeRow.value?.solution.selections || [];
+  const bySlot = new Map(selections.filter((item) => Number.isInteger(item.slot))
+    .map((item) => [item.slot, item]));
+  const slots = [...new Set([...store.pylons.map((pylon) => pylon.slot), ...bySlot.keys()])]
+    .sort((left, right) => left - right);
+  return slots.map((slot) => ({slot, selection: bySlot.get(slot) || null}));
+});
 
 watch(() => store.lastResult, () => {
   expandedRows.value = {};
+  selectedRowId.value = null;
 });
+
+function selectResult(event: {data: ResultRow}): void {
+  selectedRowId.value = event.data.id;
+}
+
+function mountName(selection: Selection): string {
+  return selection.weapon_display_name || selection.weapon_id || selection.option_id;
+}
 
 function setTargetDamage(value: number | null): void {
   if (value != null) store.targetDamage = value;
@@ -58,7 +84,10 @@ function setTop(value: number | null): void {
 }
 
 function rowClass(row: ResultRow): string {
-  return row.rank === 1 ? "recommended-row" : "";
+  return [
+    row.rank === 1 ? "recommended-row" : "",
+    row.id === activeRow.value?.id ? "selected-result-row" : "",
+  ].filter(Boolean).join(" ");
 }
 
 function formatReward(value: number | null): string {
@@ -128,6 +157,37 @@ function formatReward(value: number | null): string {
       </div>
     </div>
 
+    <section v-if="activeRow" class="mount-preview" aria-label="所选方案的挂点布局">
+      <div class="mount-preview-heading">
+        <div>
+          <strong>方案 #{{ activeRow.rank }} · 挂点布局</strong>
+          <p>按 Datamine 挂点编号排列，点击下方方案行切换。</p>
+        </div>
+        <span class="mount-preview-summary">{{ activeRow.slot_count }} 个挂点 · {{ formatNumber(activeRow.damage) }} 伤害</span>
+      </div>
+      <div class="mount-preview-scroll" tabindex="0" role="region" aria-label="挂点明细，可横向滚动">
+        <div
+          class="mount-preview-grid"
+          :style="{gridTemplateColumns: `repeat(${Math.max(1, mountStations.length)}, minmax(88px, 1fr))`}"
+        >
+          <div
+            v-for="station in mountStations"
+            :key="station.slot"
+            class="mount-preview-station"
+            :class="{'mount-preview-station-empty': !station.selection, 'mount-preview-station-support': station.selection?.support}"
+          >
+            <span class="mount-preview-number">P{{ station.slot }}</span>
+            <template v-if="station.selection">
+              <strong class="mount-preview-weapon" :title="station.selection.option_id">{{ mountName(station.selection) }}</strong>
+              <span class="mount-preview-count">×{{ station.selection.count }}</span>
+              <span v-if="station.selection.support" class="mount-preview-device">必需设备</span>
+            </template>
+            <span v-else class="mount-preview-empty">—</span>
+          </div>
+        </div>
+      </div>
+    </section>
+
     <div v-if="store.lastResult && resultCount" class="table-panel">
       <DataTable
         v-model:expanded-rows="expandedRows"
@@ -136,6 +196,7 @@ function formatReward(value: number | null): string {
         sort-field="rank"
         :sort-order="1"
         :row-class="rowClass"
+        @row-click="selectResult"
         class="results-datatable"
         table-style="min-width: 680px"
       >
