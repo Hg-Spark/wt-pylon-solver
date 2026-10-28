@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+import csv
 import json
 import re
 import shutil
@@ -90,6 +91,54 @@ def all_aircraft_ids(root: Path) -> Iterable[str]:
             yield aircraft
 
 
+def aircraft_names(root: Path | None) -> dict[str, tuple[str, str]]:
+    """Use the game's tech-tree names; missing translations fall back to the ID."""
+    if root is None:
+        return {}
+    path = root / "lang.vromfs.bin_u/lang/units.csv"
+    if not path.is_file():
+        return {}
+
+    names: dict[str, tuple[str, str]] = {}
+    with path.open(encoding="utf-8-sig", newline="") as handle:
+        reader = csv.reader(handle, delimiter=";")
+        header = [value.strip("<> ").lower() for value in next(reader, [])]
+        english = header.index("english") if "english" in header else -1
+        chinese = header.index("chinese") if "chinese" in header else -1
+        if english < 0 and chinese < 0:
+            return names
+        for row in reader:
+            if not row or not row[0].endswith(("_shop", "_0")):
+                continue
+            unit_id, suffix = row[0].rsplit("_", 1)
+            en = row[english].replace("\t", "").strip() if 0 <= english < len(row) else ""
+            zh = row[chinese].replace("\t", "").strip() if 0 <= chinese < len(row) else ""
+            if not en and not zh:
+                continue
+            # A shop name takes precedence over a stat-card (_0) name.
+            if suffix == "shop" or unit_id not in names:
+                names[unit_id] = (zh, en)
+    return names
+
+
+def write_aircraft_index(output: Path, root: Path | None) -> None:
+    translations = aircraft_names(root)
+    aircraft_ids = sorted(
+        path.stem for path in output.glob("*.json")
+        if path.stem != "aircraft-index"
+    )
+    index = [
+        {"id": unit_id, "zh": translations.get(unit_id, ("", ""))[0],
+         "en": translations.get(unit_id, ("", ""))[1]}
+        for unit_id in aircraft_ids
+    ]
+    (output / "aircraft-index.json").write_text(
+        json.dumps(index, ensure_ascii=False, separators=(",", ":")),
+        encoding="utf-8",
+    )
+    print(f"generated aircraft search index: {len(index)} aircraft")
+
+
 def write_aircraft(aircraft: str, source: DatamineSource, output: Path, icon_types: set[str]) -> bool:
     try:
         loadout = parse_datamine_loadout(aircraft, source=source)
@@ -162,6 +211,7 @@ def main() -> None:
 
     if written == 0:
         raise SystemExit("No aircraft data was generated")
+    write_aircraft_index(output, root)
     print(f"generated {written}/{len(aircraft_ids)} aircraft files in {output}")
 
 
