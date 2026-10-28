@@ -247,6 +247,15 @@ def parse_datamine_loadout(
     if not slots:
         raise DatamineError(f"No weapon slots found for {unit_id}")
 
+    # Keep non-damaging pods when a weapon explicitly depends on them.
+    required_presets = set()
+    for slot in slots:
+        for preset in _as_list(slot.get("WeaponPreset")):
+            if isinstance(preset, dict):
+                for dependency in _as_list(preset.get("DependentWeaponPreset")):
+                    if isinstance(dependency, dict):
+                        required_presets.add((dependency.get("slot"), dependency.get("preset")))
+
     # Warm the disk cache for all first-level weapon references. This keeps a
     # remote Datamine source usable without turning one aircraft load into a
     # long serial chain of small GitHub requests.
@@ -278,6 +287,7 @@ def parse_datamine_loadout(
                 damage_curve=damage_curve,
                 wpcost_weapons=wpcost_weapons,
                 custom_map=custom_map,
+                required_presets=required_presets,
             )
             if option is not None:
                 weapons.append(option)
@@ -296,6 +306,17 @@ def parse_datamine_loadout(
 
 
 
+def _related_option_ids(unit_id: str, preset: Mapping[str, Any], field: str) -> List[str]:
+    result = []
+    for entry in _as_list(preset.get(field)):
+        if not isinstance(entry, dict):
+            continue
+        slot, name = entry.get("slot"), entry.get("preset")
+        if isinstance(slot, int) and slot > 0 and isinstance(name, str) and name:
+            result.append(f"datamine:{unit_id}:{slot}:{name}")
+    return result
+
+
 def _build_option(
     unit_id: str,
     slot_index: int,
@@ -307,10 +328,17 @@ def _build_option(
     damage_curve: Sequence[Tuple[float, float]],
     wpcost_weapons: Mapping[str, Any],
     custom_map: Mapping[Tuple[int, str], Mapping[str, int]],
+    required_presets: set[Tuple[int, str]],
 ) -> Optional[Dict[str, Any]]:
     preset_name = str(preset.get("name") or "").strip()
     if not preset_name:
         return None
+    required_ids = _related_option_ids(unit_id, preset, "DependentWeaponPreset")
+    banned_ids = _related_option_ids(unit_id, preset, "BannedWeaponPreset")
+    relations = {
+        **({"required_option_ids": required_ids} if required_ids else {}),
+        **({"banned_option_ids": banned_ids} if banned_ids else {}),
+    }
     raw_weapons = [weapon for weapon in _as_list(preset.get("Weapon")) if isinstance(weapon, dict)]
     if not raw_weapons:
         return None
@@ -339,7 +367,22 @@ def _build_option(
 
     identity_leaves = [leaf for leaf in leaves if _is_payload_leaf(leaf)]
     if not identity_leaves:
-        return None
+        if (slot_index, preset_name) not in required_presets:
+            return None
+        mass = _leaf_total_mass(leaves)
+        return {
+            "option_id": f"datamine:{unit_id}:{slot_index}:{preset_name}",
+            "weapon_id": preset_name,
+            "weapon_display_name": _humanize_id(preset_name),
+            "count": 1,
+            "slots": [slot_index],
+            "weight_kg": mass,
+            "damage": 0.0,
+            "counted_base_damage": 0.0,
+            "weapon_category": "other",
+            "support": True,
+            **relations,
+        }
     total_count = sum(max(leaf.count, 0) for leaf in identity_leaves)
     total_count = max(total_count, 1)
 
@@ -399,6 +442,7 @@ def _build_option(
         "damage": float(damage) if isinstance(damage, (int, float)) else None,
         "counted_base_damage": float(counted_base_damage),
         **classification,
+        **relations,
     }
     return option
 
