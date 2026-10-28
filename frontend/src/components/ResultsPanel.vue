@@ -56,7 +56,7 @@ const activeRow = computed(() => (
 const mountStations = computed<MountStation[]>(() => {
   const selections = activeRow.value?.solution.selections || [];
   const bySlot = new Map(selections.filter((item) => Number.isInteger(item.slot))
-    .map((item) => [item.slot, item]));
+    .map((item) => [item.slot, item] as const));
   const slots = [...new Set([...store.pylons.map((pylon) => pylon.slot), ...bySlot.keys()])]
     .sort((left, right) => left - right);
   return slots.map((slot) => ({slot, selection: bySlot.get(slot) || null}));
