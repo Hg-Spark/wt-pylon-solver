@@ -381,6 +381,7 @@ def _build_option(
             "counted_base_damage": 0.0,
             "weapon_category": "other",
             "support": True,
+            "icon_type": preset.get("iconType"),
             **relations,
         }
     total_count = sum(max(leaf.count, 0) for leaf in identity_leaves)
@@ -441,6 +442,7 @@ def _build_option(
         "base_damage_per_unit": damage_per_unit,
         "damage": float(damage) if isinstance(damage, (int, float)) else None,
         "counted_base_damage": float(counted_base_damage),
+        "icon_type": preset.get("iconType"),
         **classification,
         **relations,
     }
