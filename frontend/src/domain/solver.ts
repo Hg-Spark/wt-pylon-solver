@@ -1,5 +1,6 @@
 import type {
   BombingRewardProfile,
+  FixedPylons,
   PreparedOption,
   PreparedPylon,
   QuantityConstraint,
@@ -19,6 +20,7 @@ export interface SolverInput {
   allowedOptions: ReadonlySet<string> | null;
   damageOverrides: Readonly<Record<string, number>>;
   quantityConstraints: QuantityConstraint[];
+  fixedPylons?: Readonly<FixedPylons>;
 }
 
 interface EffectiveOption {
@@ -67,11 +69,22 @@ export function solvePylonLoadout(input: SolverInput): Solution[] {
   const constraints = buildConstraints(input.quantityConstraints);
   const constraintKeys = [...constraints.targets.keys()].sort();
   const resultLimit = Math.max(1, Math.trunc(input.top));
+  const fixed = input.fixedPylons || {};
+  const availableSlots = new Set(input.pylons.map((pylon) => pylon.slot));
+  for (const key of Object.keys(fixed)) {
+    const slot = Number(key);
+    if (!availableSlots.has(slot) || (input.allowedSlots.size > 0 && !input.allowedSlots.has(slot))) return [];
+    const optionId = fixed[slot];
+    if (optionId != null && !input.pylons.find((pylon) => pylon.slot === slot)?.options
+      .some((option) => option.option_id === optionId)) return [];
+  }
   const activePylons = input.pylons.filter((pylon) => (
     input.allowedSlots.size === 0 || input.allowedSlots.has(pylon.slot)
-  ));
+  )).sort((a, b) => a.slot - b.slot);
   const optionsBySlot = activePylons.map((pylon) => pylon.options
-    .map((option) => normalizeOption(option, input))
+    .filter((option) => !Object.prototype.hasOwnProperty.call(fixed, pylon.slot)
+      || option.option_id === fixed[pylon.slot])
+    .map((option) => normalizeOption(option, input, fixed[pylon.slot] === option.option_id))
     .filter((option): option is EffectiveOption => option !== null));
   const relations = buildRelations(activePylons, optionsBySlot);
 
@@ -113,6 +126,7 @@ export function solvePylonLoadout(input: SolverInput): Solution[] {
       input.sortBy,
       resultLimit,
       relations,
+      fixed,
     )
     : solveConstrained(
       initial,
@@ -126,10 +140,11 @@ export function solvePylonLoadout(input: SolverInput): Solution[] {
       input.sortBy,
       resultLimit,
       relations,
+      fixed,
     );
 
   const solutions = filterDominatedSolutions(
-    finalCandidates.filter(supportsAreRequired),
+    finalCandidates.filter((candidate) => supportsAreRequired(candidate, fixed)),
     targetDamage,
     input.sortBy,
     input.rewardProfile,
@@ -200,12 +215,14 @@ function isCompatible(
   return true;
 }
 
-function supportsAreRequired(candidate: Candidate): boolean {
+function supportsAreRequired(candidate: Candidate, fixed: Readonly<FixedPylons>): boolean {
   const used = new Set<string>();
   const required = new Set<string>();
   for (let current: Candidate | undefined = candidate; current; current = current.previous) {
     if (!current.option) continue;
-    if (current.option.source.support) used.add(current.option.optionId);
+    if (current.option.source.support && fixed[current.slot ?? -1] !== current.option.optionId) {
+      used.add(current.option.optionId);
+    }
     for (const id of current.option.source.required_option_ids || []) required.add(id);
   }
   return [...used].every((id) => required.has(id));
@@ -261,6 +278,7 @@ function solveUnconstrained(
   sortBy: SortBy,
   stateLimit: number,
   relations: Relations,
+  fixed: Readonly<FixedPylons>,
 ): Candidate[] {
   let states = new Map<string, Candidate[]>();
   states.set(stateKeyForSort(0, 0, sortBy, ""), [initial]);
@@ -276,7 +294,8 @@ function solveUnconstrained(
     // relevant when otherwise-equal candidates reach the Top-N cutoff.
     for (const [key, candidates] of states) {
       const stateDamage = candidates[0]?.damage ?? 0;
-      if (stateDamage >= targetDamage || stateDamage + remainingMaxDamage >= targetDamage) {
+      if (!Object.prototype.hasOwnProperty.call(fixed, pylon.slot)
+        && (stateDamage >= targetDamage || stateDamage + remainingMaxDamage >= targetDamage)) {
         const compatible = candidates.filter((candidate) => isCompatible(candidate, pylon.slot, null, relations));
         if (compatible.length) nextStates.set(key, compatible);
       }
@@ -328,6 +347,7 @@ function solveConstrained(
   sortBy: SortBy,
   stateLimit: number,
   relations: Relations,
+  fixed: Readonly<FixedPylons>,
 ): Candidate[] {
   let states = new Map<string, Candidate[]>();
   states.set(stateKey(0, 0, initial.constraintCounts, constraintKeys, sortBy, ""), [initial]);
@@ -340,7 +360,8 @@ function solveConstrained(
 
     for (const [key, candidates] of states) {
       const stateDamage = candidates[0]?.damage ?? 0;
-      if (stateDamage >= targetDamage || stateDamage + remainingMaxDamage >= targetDamage) {
+      if (!Object.prototype.hasOwnProperty.call(fixed, pylon.slot)
+        && (stateDamage >= targetDamage || stateDamage + remainingMaxDamage >= targetDamage)) {
         const compatible = candidates.filter((candidate) => isCompatible(candidate, pylon.slot, null, relations));
         if (compatible.length) nextStates.set(key, compatible);
       }
@@ -350,7 +371,9 @@ function solveConstrained(
       for (const candidate of candidates) {
         for (const option of options) {
           if (!isCompatible(candidate, pylon.slot, option, relations)) continue;
-          const nextCounts = nextConstraintCounts(candidate.constraintCounts, option, constraints);
+          const nextCounts = fixed[pylon.slot] === option.optionId
+            ? candidate.constraintCounts
+            : nextConstraintCounts(candidate.constraintCounts, option, constraints);
           if (!nextCounts) continue;
 
           const damage = candidate.damage + option.damage;
@@ -417,10 +440,10 @@ function extendCandidate(
   };
 }
 
-function normalizeOption(source: PreparedOption, input: SolverInput): EffectiveOption | null {
+function normalizeOption(source: PreparedOption, input: SolverInput, fixed = false): EffectiveOption | null {
   const optionId = String(source.option_id || "");
   if (!optionId) return null;
-  if (input.allowedOptions && !input.allowedOptions.has(optionId) && !source.support) return null;
+  if (input.allowedOptions && !input.allowedOptions.has(optionId) && !source.support && !fixed) return null;
 
   const hasOverride = Object.prototype.hasOwnProperty.call(input.damageOverrides, optionId);
   const damage = hasOverride ? input.damageOverrides[optionId] : source.damage;
@@ -724,7 +747,7 @@ function candidateReward(
   return candidate.reward;
 }
 
-function calculateReward(
+export function calculateReward(
   damage: number,
   profile: BombingRewardProfile | null,
 ): number | null {
