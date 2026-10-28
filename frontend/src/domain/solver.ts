@@ -294,7 +294,7 @@ function solveUnconstrained(
     // relevant when otherwise-equal candidates reach the Top-N cutoff.
     for (const [key, candidates] of states) {
       const stateDamage = candidates[0]?.damage ?? 0;
-      if (!Object.prototype.hasOwnProperty.call(fixed, pylon.slot)
+      if ((!Object.prototype.hasOwnProperty.call(fixed, pylon.slot) || fixed[pylon.slot] === null)
         && (stateDamage >= targetDamage || stateDamage + remainingMaxDamage >= targetDamage)) {
         const compatible = candidates.filter((candidate) => isCompatible(candidate, pylon.slot, null, relations));
         if (compatible.length) nextStates.set(key, compatible);
@@ -360,7 +360,7 @@ function solveConstrained(
 
     for (const [key, candidates] of states) {
       const stateDamage = candidates[0]?.damage ?? 0;
-      if (!Object.prototype.hasOwnProperty.call(fixed, pylon.slot)
+      if ((!Object.prototype.hasOwnProperty.call(fixed, pylon.slot) || fixed[pylon.slot] === null)
         && (stateDamage >= targetDamage || stateDamage + remainingMaxDamage >= targetDamage)) {
         const compatible = candidates.filter((candidate) => isCompatible(candidate, pylon.slot, null, relations));
         if (compatible.length) nextStates.set(key, compatible);
