@@ -211,7 +211,7 @@ def main() -> None:
 
     root = args.datamine_root.resolve() if args.datamine_root else None
     source = DatamineSource(root=root)
-    unit_costs = read_unit_costs(root) if root is not None else {}
+    unit_costs = source.read_json(WPCOST.as_posix())
     aircraft_ids = list(all_aircraft_ids(root, unit_costs)) if args.all and root else [item.lower() for item in args.aircraft]
 
     written = 0
