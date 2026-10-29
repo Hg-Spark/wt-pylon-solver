@@ -3,6 +3,12 @@ import type {AircraftIndexItem} from "../types";
 const RECENT_COOKIE = "wt_recent_aircraft";
 const MAX_RECENT = 8;
 const AIRCRAFT_ID = /^[a-z0-9_-]+$/;
+// Datamine uses these glyphs as insignia/event badges within localized names.
+const NAME_MARKERS = /[⋠␗␙␠▀▂▃▄▅◔◄◊◘◐◌◢◍◥◗○◆◡☢\uf059\u200b]/g;
+
+export function cleanAircraftName(value: string): string {
+  return value.replace(NAME_MARKERS, "").replace(/\s+/g, " ").trim();
+}
 
 export const AIRCRAFT_NATIONS = [
   {value: "usa", label: "美系"},
@@ -22,11 +28,11 @@ export function aircraftNationLabel(nation: string | null | undefined): string {
 }
 
 export function normalizeAircraftSearch(value: string): string {
-  return value.normalize("NFKC").toLocaleLowerCase().replace(/[\u2417\u200b\s._\-·()（）]/g, "");
+  return cleanAircraftName(value).normalize("NFKC").toLocaleLowerCase().replace(/[\s._\-·()（）]/g, "");
 }
 
 export function aircraftLabel(entry: AircraftIndexItem): string {
-  return entry.zh || entry.en || entry.id;
+  return cleanAircraftName(entry.zh || entry.en || entry.id);
 }
 
 export function searchAircraft(

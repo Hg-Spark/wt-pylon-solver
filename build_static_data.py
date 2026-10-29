@@ -19,6 +19,11 @@ NATIONS = frozenset({
     "china", "italy", "france", "sweden", "israel",
 })
 
+# UI-only insignia/event glyphs embedded in Datamine's localized vehicle names.
+# Keep legitimate designation characters such as "+" (AV-8B+) and "×" (8×8).
+AIRCRAFT_NAME_MARKERS = "⋠␗␙␠▀▂▃▄▅◔◄◊◘◐◌◢◍◥◗○◆◡☢\uf059"
+_NAME_MARKER_TRANSLATION = str.maketrans("", "", AIRCRAFT_NAME_MARKERS + "\u200b")
+
 
 def read_unit_costs(root: Path) -> dict[str, Any]:
     path = root / WPCOST
@@ -39,7 +44,8 @@ def aircraft_nation(cost: Any) -> str | None:
 
 
 def clean_aircraft_name(value: str) -> str:
-    return value.replace("\t", "").replace("\u2417", "").replace("\u200b", "").strip()
+    name = value.replace("\t", "").translate(_NAME_MARKER_TRANSLATION)
+    return re.sub(r"\s+", " ", name).strip()
 
 
 def compact_option(weapon: dict[str, Any]) -> dict[str, Any]:

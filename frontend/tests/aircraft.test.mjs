@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import {test} from "node:test";
 import {
-  aircraftLabel, normalizeAircraftSearch, searchAircraft, updatedRecentAircraft,
+  aircraftLabel, cleanAircraftName, normalizeAircraftSearch, searchAircraft, updatedRecentAircraft,
 } from "../src/domain/aircraft.ts";
 
 const entries = [
@@ -27,6 +27,18 @@ test("nation filter uses the tech tree, independent of aircraft origin", () => {
   assert.deepEqual(searchAircraft(entries, "f16", [], 20, "china").map((item) => item.id), ["f_16v_china"]);
   assert.deepEqual(searchAircraft(entries, "f16", [], 20, "usa").map((item) => item.id), ["f_16c_block_50"]);
   assert.deepEqual(searchAircraft(entries, "苏", [], 20, "usa"), []);
+});
+
+test("insignia and event markers are removed without changing model designations", () => {
+  const badges = "⋠␗␙␠▀▂▃▄▅◔◄◊◘◐◌◢◍◥◗○◆◡☢\uf059";
+  for (const marker of badges) {
+    assert.equal(cleanAircraftName(`${marker}\u200bF-16V`), "F-16V", `marker ${marker}`);
+    assert.equal(normalizeAircraftSearch(`${marker}F-16V`), "f16v");
+  }
+  assert.equal(cleanAircraftName("Weizman's \uf059Spitfire"), "Weizman's Spitfire");
+  assert.equal(cleanAircraftName("F-86F-30 ▅"), "F-86F-30");
+  assert.equal(cleanAircraftName("AV-8B+\u00a0 8×8"), "AV-8B+ 8×8");
+  assert.equal(aircraftLabel({id: "test", zh: "␙\u200bMirage 2000", en: ""}), "Mirage 2000");
 });
 
 test("recent aircraft are ordered first and deduplicated within eight IDs", () => {

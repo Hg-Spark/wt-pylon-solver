@@ -4,7 +4,10 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from build_static_data import aircraft_names, aircraft_nation, write_aircraft_index
+from build_static_data import (
+    AIRCRAFT_NAME_MARKERS, aircraft_names, aircraft_nation,
+    clean_aircraft_name, write_aircraft_index,
+)
 
 
 class AircraftIndexTest(unittest.TestCase):
@@ -23,6 +26,14 @@ class AircraftIndexTest(unittest.TestCase):
             self.assertEqual(names["su_34"], ("苏-34", "Su-34"))
             self.assertEqual(names["f_15e"], ("", "F-15E Strike Eagle"))
 
+    def test_all_datamine_name_markers_are_removed(self):
+        for marker in AIRCRAFT_NAME_MARKERS:
+            with self.subTest(marker=hex(ord(marker))):
+                self.assertEqual(clean_aircraft_name(f"{marker}\u200bF-16V"), "F-16V")
+        self.assertEqual(clean_aircraft_name("Weizman's \uf059Spitfire"), "Weizman's Spitfire")
+        self.assertEqual(clean_aircraft_name("F-86F-30 \u2585"), "F-86F-30")
+        self.assertEqual(clean_aircraft_name("AV-8B+\u00a0 8×8"), "AV-8B+ 8×8")
+
     def test_nation_from_wpcost(self):
         self.assertEqual(aircraft_nation({"country": "country_china"}), "china")
         self.assertEqual(aircraft_nation({"country": "country_usa"}), "usa")
@@ -38,20 +49,23 @@ class AircraftIndexTest(unittest.TestCase):
                 writer = csv.writer(handle, delimiter=";")
                 writer.writerow(["<ID>", "<English>", "<Chinese>"])
                 writer.writerow(["f_16a_block_72v_china_shop", "\u2417F-16V", "\u2417\u200bF-16V"])
+                writer.writerow(["p_47m_shop", "\u22e0P-47M-1-RE", "\u22e0\u200bP-47M-1-RE"])
                 writer.writerow(["f_15e_shop", "F-15E", "F-15E"])
             output = root / "output"
             output.mkdir()
-            for unit_id in ("f_16a_block_72v_china", "f_15e"):
+            for unit_id in ("f_16a_block_72v_china", "f_15e", "p_47m"):
                 (output / f"{unit_id}.json").write_text("{}", encoding="utf-8")
             write_aircraft_index(output, root, {
                 "f_16a_block_72v_china": {"country": "country_china"},
                 "f_15e": {"country": "country_usa"},
+                "p_47m": {"country": "country_usa"},
             })
             index = {item["id"]: item for item in json.loads((output / "aircraft-index.json").read_text(encoding="utf-8"))}
             self.assertEqual(index["f_16a_block_72v_china"]["zh"], "F-16V")
             self.assertEqual(index["f_16a_block_72v_china"]["en"], "F-16V")
             self.assertEqual(index["f_16a_block_72v_china"]["nation"], "china")
             self.assertEqual(index["f_15e"]["nation"], "usa")
+            self.assertEqual(index["p_47m"]["zh"], "P-47M-1-RE")
 
     def test_index_uses_only_generated_aircraft_data(self):
         with tempfile.TemporaryDirectory() as temp:

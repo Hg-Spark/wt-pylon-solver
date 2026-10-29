@@ -5,7 +5,7 @@ import Button from "primevue/button";
 import Checkbox from "primevue/checkbox";
 import InputNumber from "primevue/inputnumber";
 import {fetchAircraftIndex} from "../services/api";
-import {AIRCRAFT_NATIONS, aircraftLabel, aircraftNationLabel, normalizeAircraftSearch, readRecentAircraft, saveRecentAircraft, searchAircraft} from "../domain/aircraft";
+import {AIRCRAFT_NATIONS, aircraftLabel, aircraftNationLabel, cleanAircraftName, normalizeAircraftSearch, readRecentAircraft, saveRecentAircraft, searchAircraft} from "../domain/aircraft";
 import type {AircraftIndexItem} from "../types";
 import {useLoadoutStore} from "../stores/loadout";
 
@@ -127,7 +127,7 @@ function toggleDetails(rowId: string): void {
               <template #option="{option}">
                 <div class="aircraft-option">
                   <span class="aircraft-option-name">{{ aircraftLabel(option) }}</span>
-                  <small>{{ option.en && option.en !== aircraftLabel(option) ? option.en + " · " : "" }}{{ option.id }}</small>
+                  <small>{{ option.en && cleanAircraftName(option.en) !== aircraftLabel(option) ? cleanAircraftName(option.en) + " · " : "" }}{{ option.id }}</small>
                   <span class="aircraft-nation-mark">{{ aircraftNationLabel(option.nation) }}</span>
                   <span v-if="recentIds.includes(option.id)" class="aircraft-recent-mark">最近</span>
                 </div>
