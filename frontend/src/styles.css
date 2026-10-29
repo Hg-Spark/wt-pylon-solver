@@ -129,12 +129,16 @@ button:disabled { cursor: not-allowed; }
 .load-button { flex: 0 0 auto; min-width: 62px; height: var(--control-h); }
 .library-aircraft-picker { flex: 1 1 300px; min-width: 0; display: grid; gap: 5px; }
 .library-aircraft-picker .library-aircraft-field { width: 100%; min-width: 0; }
-.aircraft-control .aircraft-autocomplete { flex: 1 1 auto; min-width: 0; width: 100%; }
+.aircraft-control .aircraft-nation-select { flex: 0 0 92px; width: 92px; min-width: 0; height: var(--control-h); padding: 0 5px; border: 1px solid var(--line-strong); border-radius: 6px; background: var(--surface); color: var(--text); font-size: 12px; }
+.aircraft-control .aircraft-nation-select:focus-visible { outline: 2px solid var(--primary); outline-offset: 1px; }
+.aircraft-control .aircraft-autocomplete { position: relative; flex: 1 1 auto; min-width: 0; width: 100%; }
+.aircraft-control .aircraft-autocomplete .p-autocomplete-overlay { min-width: 100%; }
 .aircraft-control .aircraft-autocomplete .p-autocomplete-input { width: 100%; min-width: 0; height: var(--control-h); }
 .aircraft-control .aircraft-autocomplete .p-autocomplete-dropdown { height: var(--control-h); flex: 0 0 32px; }
 .aircraft-option { display: flex; flex-wrap: wrap; gap: 2px 8px; align-items: baseline; min-width: 0; }
 .aircraft-option-name { font-size: 13px; font-weight: 700; }
 .aircraft-option small { color: var(--muted); font-size: 11px; overflow-wrap: anywhere; }
+.aircraft-nation-mark { margin-left: auto; color: var(--muted-strong); font-size: 10px; white-space: nowrap; }
 .aircraft-recent-mark { margin-left: auto; color: var(--primary-dark); font-size: 10px; }
 .aircraft-recents { display: flex; flex-wrap: wrap; align-items: center; gap: 5px; }
 .aircraft-recents > span { color: var(--muted); font-size: 11px; }

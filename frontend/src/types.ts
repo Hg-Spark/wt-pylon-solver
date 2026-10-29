@@ -2,6 +2,7 @@ export interface AircraftIndexItem {
   id: string;
   zh: string;
   en: string;
+  nation?: string | null;
 }
 
 export type SortBy = "high_yield" | "weapons" | "weight";

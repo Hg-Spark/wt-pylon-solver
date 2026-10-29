@@ -28,7 +28,7 @@ npm run dev
 
 `frontend/public/data/*.json` 是生成物，不提交到 Git。构建还会生成 `data/aircraft-index.json`：只包含成功生成的飞机 ID，以及从 Datamine `lang/units.csv` 读取的中英文名称。
 
-飞机选择支持中文、英文和 Datamine ID 搜索；可以直接输入完整 ID 作为回退。最近 8 次成功加载的飞机 ID 保存在站点的第一方 Cookie（`wt_recent_aircraft`，有效期 180 天），不记录挂载配置或搜索历史，清除浏览器 Cookie 后即清空。
+飞机选择支持中文、英文和 Datamine ID 搜索，可按十大科技树系别筛选；系别读取 Datamine 的 `wpcost.blkx` 中 `country` 字段，原始名称中的国籍装饰字符和零宽空格在构建阶段清理。可以直接输入完整 ID 作为回退。最近 8 次成功加载的飞机 ID 保存在站点的第一方 Cookie（`wt_recent_aircraft`，有效期 180 天），不记录挂载配置或搜索历史，清除浏览器 Cookie 后即清空。
 
 ## 本地完整构建
 

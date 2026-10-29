@@ -60,5 +60,6 @@ export async function fetchAircraftIndex(): Promise<AircraftIndexItem[]> {
   return data.filter((item): item is AircraftIndexItem =>
     item != null && typeof item === "object"
       && typeof item.id === "string" && /^[a-z0-9_-]+$/.test(item.id)
-      && typeof item.zh === "string" && typeof item.en === "string");
+      && typeof item.zh === "string" && typeof item.en === "string"
+      && (item.nation == null || typeof item.nation === "string"));
 }

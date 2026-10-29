@@ -13,6 +13,33 @@ from datamine_loadout_parser import DatamineError, DatamineSource, parse_datamin
 
 DEFAULT_OUTPUT = Path(__file__).resolve().parent / "frontend" / "public" / "data"
 FLIGHTMODELS = Path("aces.vromfs.bin_u/gamedata/flightmodels")
+WPCOST = Path("char.vromfs.bin_u/config/wpcost.blkx")
+NATIONS = frozenset({
+    "usa", "germany", "ussr", "britain", "japan",
+    "china", "italy", "france", "sweden", "israel",
+})
+
+
+def read_unit_costs(root: Path) -> dict[str, Any]:
+    path = root / WPCOST
+    try:
+        data = json.loads(path.read_text(encoding="utf-8-sig"))
+    except (OSError, json.JSONDecodeError) as exc:
+        raise SystemExit(f"Failed to read wpcost: {path}: {exc}") from exc
+    if not isinstance(data, dict):
+        raise SystemExit(f"Invalid wpcost object: {path}")
+    return data
+
+
+def aircraft_nation(cost: Any) -> str | None:
+    if not isinstance(cost, dict) or not isinstance(cost.get("country"), str):
+        return None
+    nation = cost["country"].removeprefix("country_")
+    return nation if nation in NATIONS else None
+
+
+def clean_aircraft_name(value: str) -> str:
+    return value.replace("\t", "").replace("\u2417", "").replace("\u200b", "").strip()
 
 
 def compact_option(weapon: dict[str, Any]) -> dict[str, Any]:
@@ -67,17 +94,12 @@ def compact_loadout(loadout: dict[str, Any], aircraft: str) -> dict[str, Any]:
     }
 
 
-def all_aircraft_ids(root: Path) -> Iterable[str]:
+def all_aircraft_ids(root: Path, unit_costs: dict[str, Any] | None = None) -> Iterable[str]:
     flight_dir = root / FLIGHTMODELS
     if not flight_dir.is_dir():
         raise SystemExit(f"Datamine flightmodels directory not found: {flight_dir}")
 
-    wpcost_path = root / "char.vromfs.bin_u/config/wpcost.blkx"
-    try:
-        wpcost = json.loads(wpcost_path.read_text(encoding="utf-8-sig"))
-    except (OSError, json.JSONDecodeError) as exc:
-        raise SystemExit(f"Failed to read wpcost: {wpcost_path}: {exc}") from exc
-    known_units = set(wpcost) if isinstance(wpcost, dict) else set()
+    known_units = set(unit_costs if unit_costs is not None else read_unit_costs(root))
 
     for path in sorted(flight_dir.glob("*.blkx")):
         aircraft = path.stem.lower()
@@ -111,8 +133,8 @@ def aircraft_names(root: Path | None) -> dict[str, tuple[str, str]]:
             if not row or not row[0].endswith(("_shop", "_0")):
                 continue
             unit_id, suffix = row[0].rsplit("_", 1)
-            en = row[english].replace("\t", "").strip() if 0 <= english < len(row) else ""
-            zh = row[chinese].replace("\t", "").strip() if 0 <= chinese < len(row) else ""
+            en = clean_aircraft_name(row[english]) if 0 <= english < len(row) else ""
+            zh = clean_aircraft_name(row[chinese]) if 0 <= chinese < len(row) else ""
             if not en and not zh:
                 continue
             # A shop name takes precedence over a stat-card (_0) name.
@@ -121,15 +143,17 @@ def aircraft_names(root: Path | None) -> dict[str, tuple[str, str]]:
     return names
 
 
-def write_aircraft_index(output: Path, root: Path | None) -> None:
+def write_aircraft_index(output: Path, root: Path | None, unit_costs: dict[str, Any] | None = None) -> None:
     translations = aircraft_names(root)
+    costs = unit_costs if unit_costs is not None else (read_unit_costs(root) if root is not None else {})
     aircraft_ids = sorted(
         path.stem for path in output.glob("*.json")
         if path.stem != "aircraft-index"
     )
     index = [
         {"id": unit_id, "zh": translations.get(unit_id, ("", ""))[0],
-         "en": translations.get(unit_id, ("", ""))[1]}
+         "en": translations.get(unit_id, ("", ""))[1],
+         "nation": aircraft_nation(costs.get(unit_id))}
         for unit_id in aircraft_ids
     ]
     (output / "aircraft-index.json").write_text(
@@ -187,7 +211,8 @@ def main() -> None:
 
     root = args.datamine_root.resolve() if args.datamine_root else None
     source = DatamineSource(root=root)
-    aircraft_ids = list(all_aircraft_ids(root)) if args.all and root else [item.lower() for item in args.aircraft]
+    unit_costs = read_unit_costs(root) if root is not None else {}
+    aircraft_ids = list(all_aircraft_ids(root, unit_costs)) if args.all and root else [item.lower() for item in args.aircraft]
 
     written = 0
     icon_types: set[str] = set()
@@ -211,7 +236,7 @@ def main() -> None:
 
     if written == 0:
         raise SystemExit("No aircraft data was generated")
-    write_aircraft_index(output, root)
+    write_aircraft_index(output, root, unit_costs)
     print(f"generated {written}/{len(aircraft_ids)} aircraft files in {output}")
 
 

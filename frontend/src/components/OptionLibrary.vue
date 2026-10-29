@@ -1,11 +1,11 @@
 <script setup lang="ts">
-import {onMounted, ref} from "vue";
+import {onMounted, ref, watch} from "vue";
 import AutoComplete from "primevue/autocomplete";
 import Button from "primevue/button";
 import Checkbox from "primevue/checkbox";
 import InputNumber from "primevue/inputnumber";
 import {fetchAircraftIndex} from "../services/api";
-import {aircraftLabel, normalizeAircraftSearch, readRecentAircraft, saveRecentAircraft, searchAircraft} from "../domain/aircraft";
+import {AIRCRAFT_NATIONS, aircraftLabel, aircraftNationLabel, normalizeAircraftSearch, readRecentAircraft, saveRecentAircraft, searchAircraft} from "../domain/aircraft";
 import type {AircraftIndexItem} from "../types";
 import {useLoadoutStore} from "../stores/loadout";
 
@@ -16,6 +16,7 @@ const aircraftSuggestions = ref<AircraftIndexItem[]>([]);
 const aircraftInput = ref<AircraftIndexItem | string | null>(store.aircraft);
 const recentIds = ref<string[]>(readRecentAircraft());
 const aircraftSearchError = ref("");
+const selectedNation = ref("");
 
 onMounted(async () => {
   try {
@@ -29,8 +30,13 @@ onMounted(async () => {
 });
 
 function completeAircraft(event: {query: string}): void {
-  aircraftSuggestions.value = searchAircraft(aircraftIndex.value, event.query, recentIds.value);
+  aircraftSuggestions.value = searchAircraft(aircraftIndex.value, event.query, recentIds.value, 20, selectedNation.value);
 }
+
+watch(selectedNation, () => {
+  const query = typeof aircraftInput.value === "string" ? aircraftInput.value : "";
+  aircraftSuggestions.value = searchAircraft(aircraftIndex.value, query, recentIds.value, 20, selectedNation.value);
+});
 
 function recentAircraft(): AircraftIndexItem[] {
   const byId = new Map(aircraftIndex.value.map((item) => [item.id, item]));
@@ -96,6 +102,10 @@ function toggleDetails(rowId: string): void {
         <div class="library-aircraft-field">
           <label for="aircraftId">选择飞机</label>
           <span class="aircraft-control">
+            <select v-model="selectedNation" class="aircraft-nation-select" aria-label="飞机系别">
+              <option value="">全部系别</option>
+              <option v-for="nation in AIRCRAFT_NATIONS" :key="nation.value" :value="nation.value">{{ nation.label }}</option>
+            </select>
             <AutoComplete
               input-id="aircraftId"
               v-model="aircraftInput"
@@ -107,7 +117,7 @@ function toggleDetails(rowId: string): void {
               complete-on-focus
               dropdown
               dropdown-mode="blank"
-              append-to="body"
+              append-to="self"
               scroll-height="280px"
               placeholder="名称或 Datamine ID"
               :disabled="store.status === 'solving'"
@@ -118,6 +128,7 @@ function toggleDetails(rowId: string): void {
                 <div class="aircraft-option">
                   <span class="aircraft-option-name">{{ aircraftLabel(option) }}</span>
                   <small>{{ option.en && option.en !== aircraftLabel(option) ? option.en + " · " : "" }}{{ option.id }}</small>
+                  <span class="aircraft-nation-mark">{{ aircraftNationLabel(option.nation) }}</span>
                   <span v-if="recentIds.includes(option.id)" class="aircraft-recent-mark">最近</span>
                 </div>
               </template>

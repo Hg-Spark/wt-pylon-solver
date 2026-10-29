@@ -5,10 +5,11 @@ import {
 } from "../src/domain/aircraft.ts";
 
 const entries = [
-  {id: "su_34", zh: "苏-34", en: "Su-34"},
-  {id: "f_15e", zh: "F-15E", en: "F-15E Strike Eagle"},
-  {id: "f_16c_block_50", zh: "", en: "F-16C Block 50"},
-  {id: "su_25", zh: "苏-25", en: "Su-25"},
+  {id: "su_34", zh: "苏-34", en: "Su-34", nation: "ussr"},
+  {id: "f_15e", zh: "F-15E", en: "F-15E Strike Eagle", nation: "usa"},
+  {id: "f_16c_block_50", zh: "", en: "F-16C Block 50", nation: "usa"},
+  {id: "su_25", zh: "苏-25", en: "Su-25", nation: "ussr"},
+  {id: "f_16v_china", zh: "␗\u200bF-16V", en: "␗F-16V", nation: "china"},
 ];
 
 test("aircraft search recognizes Chinese, English, IDs and spacing variants", () => {
@@ -19,6 +20,13 @@ test("aircraft search recognizes Chinese, English, IDs and spacing variants", ()
   assert.deepEqual(searchAircraft(entries, "f16cblock50").map((x) => x.id), ["f_16c_block_50"]);
   assert.equal(normalizeAircraftSearch("苏-34"), "苏34");
   assert.equal(aircraftLabel(entries[2]), "F-16C Block 50");
+  assert.equal(normalizeAircraftSearch("␗\u200bF-16V"), "f16v");
+});
+
+test("nation filter uses the tech tree, independent of aircraft origin", () => {
+  assert.deepEqual(searchAircraft(entries, "f16", [], 20, "china").map((item) => item.id), ["f_16v_china"]);
+  assert.deepEqual(searchAircraft(entries, "f16", [], 20, "usa").map((item) => item.id), ["f_16c_block_50"]);
+  assert.deepEqual(searchAircraft(entries, "苏", [], 20, "usa"), []);
 });
 
 test("recent aircraft are ordered first and deduplicated within eight IDs", () => {

@@ -4,8 +4,25 @@ const RECENT_COOKIE = "wt_recent_aircraft";
 const MAX_RECENT = 8;
 const AIRCRAFT_ID = /^[a-z0-9_-]+$/;
 
+export const AIRCRAFT_NATIONS = [
+  {value: "usa", label: "美系"},
+  {value: "germany", label: "德系"},
+  {value: "ussr", label: "苏系"},
+  {value: "britain", label: "英系"},
+  {value: "japan", label: "日系"},
+  {value: "china", label: "中系"},
+  {value: "italy", label: "意系"},
+  {value: "france", label: "法系"},
+  {value: "sweden", label: "瑞系"},
+  {value: "israel", label: "以系"},
+] as const;
+
+export function aircraftNationLabel(nation: string | null | undefined): string {
+  return AIRCRAFT_NATIONS.find((item) => item.value === nation)?.label || "未分类";
+}
+
 export function normalizeAircraftSearch(value: string): string {
-  return value.normalize("NFKC").toLocaleLowerCase().replace(/[\s._\-·()（）]/g, "");
+  return value.normalize("NFKC").toLocaleLowerCase().replace(/[\u2417\u200b\s._\-·()（）]/g, "");
 }
 
 export function aircraftLabel(entry: AircraftIndexItem): string {
@@ -17,10 +34,11 @@ export function searchAircraft(
   query: string,
   recentIds: readonly string[] = [],
   limit = 20,
+  nation: string | null = null,
 ): AircraftIndexItem[] {
   const needle = normalizeAircraftSearch(query.trim());
   const recentRank = new Map(recentIds.map((id, index) => [id, index]));
-  const scored = entries.map((entry) => {
+  const scored = entries.filter((entry) => !nation || entry.nation === nation).map((entry) => {
     const fields = [entry.id, entry.zh, entry.en].filter(Boolean)
       .map(normalizeAircraftSearch);
     let rank = 4;

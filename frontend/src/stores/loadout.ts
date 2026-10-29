@@ -550,7 +550,11 @@ export const useLoadoutStore = defineStore("loadout", () => {
 function clonePylons(pylons: PreparedPylon[]): PreparedPylon[] {
   return pylons.map((pylon) => ({
     slot: pylon.slot,
-    options: pylon.options.map((option) => ({...option})),
+    options: pylon.options.map((option) => ({
+      ...option,
+      required_option_ids: option.required_option_ids ? [...option.required_option_ids] : undefined,
+      banned_option_ids: option.banned_option_ids ? [...option.banned_option_ids] : undefined,
+    })),
   }));
 }
 
