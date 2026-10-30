@@ -40,7 +40,6 @@ const mountCategory = ref("all");
 const missingIcons = ref<Set<string>>(new Set());
 const stationMenus = new Map<number, {toggle: (event: Event) => void; hide: () => void}>();
 
-
 const sortOptions: Array<{label: string; value: SortBy}> = [
   {label: "高收益", value: "high_yield"},
   {label: "少挂点", value: "weapons"},
@@ -121,8 +120,8 @@ function openMountMenu(slot: number, event: Event): void {
   stationMenus.get(slot)?.toggle(event);
 }
 
-function selectMount(slot: number, optionId: string | null | undefined): void {
-  if (optionId !== undefined && store.fixedPylonChoiceConflict(slot, optionId)) return;
+function selectMount(slot: number, optionId: string | null): void {
+  if (store.fixedPylonChoiceConflict(slot, optionId)) return;
   store.setFixedPylon(slot, optionId);
   stationMenus.get(slot)?.hide();
 }
@@ -476,7 +475,7 @@ function formatReward(value: number | null): string {
         <Column field="weapon_type_count" header="武器种类" sortable header-class="numeric-column" body-class="numeric-column">
           <template #body="{data}">{{ data.weapon_type_count }}</template>
         </Column>
-        <Column field="loadout_description" header="总挂载" class="result-composition-column">
+        <Column field="loadout_description" header="总挂载" body-class="result-composition-column">
           <template #body="{data}">
             <span class="result-composition" :title="data.loadout_description">{{ data.loadout_description }}</span>
           </template>
