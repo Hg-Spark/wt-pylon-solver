@@ -166,8 +166,7 @@ function mountCategories(slot: number): Array<{value: string; label: string}> {
 
 function showEmptyMount(): boolean {
   const query = mountSearch.value.trim().toLowerCase();
-  return mountCategory.value === "all"
-    && (!query || "空挂载".includes(query) || "empty".includes(query));
+  return !query || "空挂载".includes(query) || "empty".includes(query);
 }
 
 function mountOptionGroups(slot: number): MountWeaponGroup[] {
