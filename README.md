@@ -55,12 +55,14 @@ npm run build
 4. 设置 **Build output directory**：`dist`。Python 3.12 和 Node 22 由根目录的 `.python-version`、`.node-version` 指定。
 5. 点击部署。完成后使用 Cloudflare 实际分配的 `<项目名>.pages.dev` 域名（项目名可能被占用）。
 
-构建脚本从 War Thunder Datamine 拉取必要数据与 `gameuiskin` 图标，仅保留实际引用的图标，并生成最大 96×96、保留透明度的 WebP（比较 Q85、Q90 与无损编码，选择最小结果），同时保留原 PNG 用于不兼容或图片错误时回退。浏览器按需加载图标，不会在打开首页时下载全部图标。随后生成所有飞机 JSON，运行 Vue/TypeScript 类型检查、求解器回归测试并构建静态站点。Cloudflare Git 集成连接 `main` 后，推送会自动构建和部署。
+构建脚本从 War Thunder Datamine 拉取必要数据，仅将被引用的原始 PNG **无损转换为 WebP**（保持像素和分辨率），部署产物不保留 PNG。浏览器按需加载图标，不会在打开首页时下载全部图标；转换失败会令构建失败。随后生成所有飞机 JSON，运行 Vue/TypeScript 类型检查、求解器回归测试并构建静态站点。Cloudflare Git 集成连接 `main` 后，推送会自动构建和部署。
 
 **每日更新 Datamine（可选）：** Cloudflare Pages 项目中进入 **Settings → Builds → Add deploy hook**，选择 `main` 并复制部署钩子 URL。在 GitHub 仓库 **Settings → Secrets and variables → Actions** 新增 Repository secret：`CF_PAGES_DEPLOY_HOOK`，值填入完整 URL。现有 `.github/workflows/cloudflare-refresh.yml` 每天会触发一次 Cloudflare 构建；未配置该 Secret 时自动跳过。请勿将该 URL 提交到 Git。
 
 Cloudflare 连接及首次项目创建须由 Cloudflare 账户所有者完成。本仓库不再维护 GitHub Pages 部署工作流；如果 GitHub Pages 以前已开启，需在仓库设置中手动停用，以免保留历史站点。
 
 ## 静态数据结构
+
+载入新飞机时默认不选择任何候选挂载。初始固定挂载使用已有前置依赖和互斥规则检查；自由挂点仍由求解器决定。方案结果显示武器种类数和合并后的全部挂载数量。
 
 每架飞机一个 `data/<aircraft>.json`。武器数据只保存一次；挂点只保存 `option_id` 引用，避免旧 API 结构在每个挂点下重复整份武器对象。静态数据只包含 UI/求解器需要的字段。
