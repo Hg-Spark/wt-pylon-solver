@@ -100,10 +100,9 @@ function toggleDetails(rowId: string): void {
 
       <div class="library-aircraft-picker">
         <div class="library-aircraft-field">
-          <label for="aircraftId">选择飞机</label>
           <span class="aircraft-control">
             <select v-model="selectedNation" class="aircraft-nation-select" aria-label="飞机系别">
-              <option value="">全部系别</option>
+              <option value="">全部</option>
               <option v-for="nation in AIRCRAFT_NATIONS" :key="nation.value" :value="nation.value">{{ nation.label }}</option>
             </select>
             <AutoComplete
