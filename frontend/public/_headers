@@ -1,0 +1,4 @@
+# Icon filenames are stable across Datamine rebuilds; use a short browser TTL.
+# Cloudflare Pages and Workers Static Assets both honor _headers for static files.
+/icons/*
+  Cache-Control: public, max-age=3600
