@@ -36,7 +36,6 @@ const previewMode = ref<"initial" | "result">("initial");
 const mountSearch = ref("");
 const mountCategory = ref("all");
 const missingIcons = ref<Set<string>>(new Set());
-const failedWebpIcons = ref<Set<string>>(new Set());
 const stationMenus = new Map<number, {toggle: (event: Event) => void; hide: () => void}>();
 
 
@@ -142,7 +141,6 @@ function mountCategories(slot: number): Array<{value: string; label: string}> {
   }
   return [
     {value: "all", label: "全部"},
-    {value: "empty", label: "空挂载"},
     ...[...categories].sort((a, b) => a[1].localeCompare(b[1], "zh-CN"))
       .map(([value, label]) => ({value, label})),
   ];
@@ -150,7 +148,7 @@ function mountCategories(slot: number): Array<{value: string; label: string}> {
 
 function showEmptyMount(): boolean {
   const query = mountSearch.value.trim().toLowerCase();
-  return (mountCategory.value === "all" || mountCategory.value === "empty")
+  return mountCategory.value === "all"
     && (!query || "空挂载".includes(query) || "empty".includes(query));
 }
 
@@ -206,20 +204,12 @@ function clearFixedPylon(slot: number): void {
 function iconSrc(option: PreparedOption | null): string | null {
   const name = option?.icon_type;
   if (!name || !/^[a-z0-9_-]+$/.test(name) || missingIcons.value.has(name)) return null;
-  const ext = failedWebpIcons.value.has(name) ? "png" : "webp";
-  return `${import.meta.env.BASE_URL}icons/${name}.${ext}`;
+  return `${import.meta.env.BASE_URL}icons/${name}.webp`;
 }
 
-function handleIconError(event: Event, option: PreparedOption | null): void {
-  const name = option?.icon_type;
-  const image = event.target;
-  if (!name || !(image instanceof HTMLImageElement)) return;
-  if (!failedWebpIcons.value.has(name)) {
-    failedWebpIcons.value = new Set([...failedWebpIcons.value, name]);
-    image.src = `${import.meta.env.BASE_URL}icons/${name}.png`;
-  } else {
-    missingIcons.value = new Set([...missingIcons.value, name]);
-  }
+function markIconMissing(option: PreparedOption | null): void {
+  if (!option?.icon_type) return;
+  missingIcons.value = new Set([...missingIcons.value, option.icon_type]);
 }
 
 function mountName(station: MountStation): string {
@@ -335,7 +325,7 @@ function formatReward(value: number | null): string {
                 @click="openMountMenu(station.slot, $event)"
               >
                 <span class="mount-preview-icon">
-                  <img v-if="iconSrc(station.option)" :src="iconSrc(station.option) || ''" alt="" @error="handleIconError($event, station.option)" />
+                  <img v-if="iconSrc(station.option)" :src="iconSrc(station.option) || ''" alt="" @error="markIconMissing(station.option)" />
                   <span v-else class="mount-preview-icon-fallback">{{ station.state === "free" ? "+" : station.option ? "◇" : "—" }}</span>
                 </span>
                 <span v-if="station.option && (station.selection?.count ?? station.option.count) > 1" class="mount-preview-count">×{{ station.selection?.count ?? station.option.count }}</span>
@@ -383,12 +373,12 @@ function formatReward(value: number | null): string {
                         :title="group.variants[0].option_id"
                         @click="selectMount(station.slot, group.variants[0].option_id)"
                       >
-                        <img v-if="iconSrc(group.iconOption)" :src="iconSrc(group.iconOption) || ''" alt="" loading="lazy" @error="handleIconError($event, group.iconOption)" />
+                        <img v-if="iconSrc(group.iconOption)" :src="iconSrc(group.iconOption) || ''" alt="" loading="lazy" @error="markIconMissing(group.iconOption)" />
                         <span v-else class="mount-picker-icon-fallback">◇</span>
                         <span class="mount-picker-weapon-name">{{ singleMountLabel(group) }}</span>
                       </button>
                       <div v-else class="mount-picker-weapon-row">
-                        <img v-if="iconSrc(group.iconOption)" :src="iconSrc(group.iconOption) || ''" alt="" loading="lazy" @error="handleIconError($event, group.iconOption)" />
+                        <img v-if="iconSrc(group.iconOption)" :src="iconSrc(group.iconOption) || ''" alt="" loading="lazy" @error="markIconMissing(group.iconOption)" />
                         <span v-else class="mount-picker-icon-fallback">◇</span>
                         <span class="mount-picker-weapon-name" :title="group.label">{{ group.label }}</span>
                         <div class="mount-picker-variants" role="group" :aria-label="`${group.label} 数量`">
