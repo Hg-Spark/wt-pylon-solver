@@ -339,7 +339,7 @@ function formatReward(value: number | null): string {
                     <img v-if="iconSrc(group.iconOption)" :src="iconSrc(group.iconOption) || ''" alt="" @error="markIconMissing(group.iconOption)" />
                     <span v-else class="mount-picker-icon-fallback">◇</span>
                     <span class="mount-picker-weapon-name" :title="group.label">{{ group.label }}</span>
-                    <div class="mount-picker-variants" :aria-label="`${group.label} 数量`">
+                    <div class="mount-picker-variants" role="group" :aria-label="`${group.label} 数量`">
                       <button
                         v-for="variant in group.variants"
                         :key="variant.option_id"
