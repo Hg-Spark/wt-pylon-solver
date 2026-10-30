@@ -7,7 +7,7 @@ import InputNumber from "primevue/inputnumber";
 import InputText from "primevue/inputtext";
 import Popover from "primevue/popover";
 import Select from "primevue/select";
-import {solutionId} from "../domain/loadout";
+import {loadoutText, solutionId, weaponTypeCount} from "../domain/loadout";
 import {formatNumber} from "../utils/format";
 import {useLoadoutStore} from "../stores/loadout";
 import type {PreparedOption, Selection, Solution, SortBy} from "../types";
@@ -27,6 +27,8 @@ interface ResultRow {
   reward: number | null;
   total_weight_kg: number | null;
   slot_count: number | null;
+  weapon_type_count: number;
+  loadout_description: string;
   solution: Solution;
 }
 
@@ -54,6 +56,8 @@ const resultRows = computed<ResultRow[]>(() => (
     reward: solution.reward ?? null,
     total_weight_kg: solution.total_weight_kg ?? null,
     slot_count: solution.slot_count ?? solution.selections?.length ?? null,
+    weapon_type_count: weaponTypeCount(solution),
+    loadout_description: loadoutText(solution),
     solution,
   }))
 ));
@@ -118,8 +122,22 @@ function openMountMenu(slot: number, event: Event): void {
 }
 
 function selectMount(slot: number, optionId: string | null | undefined): void {
+  if (optionId !== undefined && store.fixedPylonChoiceConflict(slot, optionId)) return;
   store.setFixedPylon(slot, optionId);
   stationMenus.get(slot)?.hide();
+}
+
+function mountRelationText(option: PreparedOption): string {
+  const describe = (ids: string[] | undefined): string =>
+    (ids || []).map((id) => {
+      const slot = store.pylons.find((pylon) => pylon.options.some((item) => item.option_id === id));
+      const name = optionById.value.get(id)?.displayName || id;
+      return slot ? `P${slot.slot} ${name}` : name;
+    }).join("、");
+  const relations: string[] = [];
+  if (option.required_option_ids?.length) relations.push(`前置：${describe(option.required_option_ids)}`);
+  if (option.banned_option_ids?.length) relations.push(`互斥：${describe(option.banned_option_ids)}`);
+  return relations.join(" · ");
 }
 
 interface MountWeaponGroup {
@@ -357,6 +375,8 @@ function formatReward(value: number | null): string {
                     type="button"
                     class="mount-picker-single"
                     :class="{chosen: station.state === 'empty'}"
+                    :disabled="Boolean(store.fixedPylonChoiceConflict(station.slot, null))"
+                    :title="store.fixedPylonChoiceConflict(station.slot, null) || undefined"
                     @click="selectMount(station.slot, null)"
                   >
                     <span class="mount-picker-icon-fallback">—</span>
@@ -370,17 +390,24 @@ function formatReward(value: number | null): string {
                         type="button"
                         class="mount-picker-single"
                         :class="{chosen: store.fixedPylons[station.slot] === group.variants[0].option_id}"
-                        :title="group.variants[0].option_id"
+                        :disabled="Boolean(store.fixedPylonChoiceConflict(station.slot, group.variants[0].option_id))"
+                        :title="store.fixedPylonChoiceConflict(station.slot, group.variants[0].option_id) || mountRelationText(group.variants[0]) || group.variants[0].option_id"
                         @click="selectMount(station.slot, group.variants[0].option_id)"
                       >
                         <img v-if="iconSrc(group.iconOption)" :src="iconSrc(group.iconOption) || ''" alt="" loading="lazy" @error="markIconMissing(group.iconOption)" />
                         <span v-else class="mount-picker-icon-fallback">◇</span>
-                        <span class="mount-picker-weapon-name">{{ singleMountLabel(group) }}</span>
+                        <span class="mount-picker-weapon-name">
+                          {{ singleMountLabel(group) }}
+                          <small v-if="mountRelationText(group.variants[0])" class="mount-picker-relations">{{ mountRelationText(group.variants[0]) }}</small>
+                        </span>
                       </button>
                       <div v-else class="mount-picker-weapon-row">
                         <img v-if="iconSrc(group.iconOption)" :src="iconSrc(group.iconOption) || ''" alt="" loading="lazy" @error="markIconMissing(group.iconOption)" />
                         <span v-else class="mount-picker-icon-fallback">◇</span>
-                        <span class="mount-picker-weapon-name" :title="group.label">{{ group.label }}</span>
+                        <span class="mount-picker-weapon-name" :title="group.label">
+                          {{ group.label }}
+                          <small v-if="mountRelationText(group.iconOption)" class="mount-picker-relations">{{ mountRelationText(group.iconOption) }}</small>
+                        </span>
                         <div class="mount-picker-variants" role="group" :aria-label="`${group.label} 数量`">
                           <button
                             v-for="variant in group.variants"
@@ -388,7 +415,8 @@ function formatReward(value: number | null): string {
                             type="button"
                             class="mount-picker-variant"
                             :class="{chosen: store.fixedPylons[station.slot] === variant.option_id}"
-                            :title="variant.option_id"
+                            :disabled="Boolean(store.fixedPylonChoiceConflict(station.slot, variant.option_id))"
+                            :title="store.fixedPylonChoiceConflict(station.slot, variant.option_id) || mountRelationText(variant) || variant.option_id"
                             :aria-label="`${group.label} ×${variant.count}`"
                             @click="selectMount(station.slot, variant.option_id)"
                           >×{{ variant.count }}</button>
@@ -423,7 +451,7 @@ function formatReward(value: number | null): string {
         :row-class="rowClass"
         @row-click="selectResult"
         class="results-datatable"
-        table-style="min-width: 680px"
+        table-style="min-width: 940px"
       >
         <Column field="rank" header="排名" sortable header-class="numeric-column" body-class="numeric-column rank-column">
           <template #body="{data}">
@@ -446,8 +474,14 @@ function formatReward(value: number | null): string {
         <Column field="slot_count" header="挂点数" sortable header-class="numeric-column" body-class="numeric-column">
           <template #body="{data}">{{ formatNumber(data.slot_count) }}</template>
         </Column>
-
-
+        <Column field="weapon_type_count" header="武器种类" sortable header-class="numeric-column" body-class="numeric-column">
+          <template #body="{data}">{{ data.weapon_type_count }}</template>
+        </Column>
+        <Column field="loadout_description" header="总挂载" class="result-composition-column">
+          <template #body="{data}">
+            <span class="result-composition" :title="data.loadout_description">{{ data.loadout_description }}</span>
+          </template>
+        </Column>
       </DataTable>
     </div>
 
