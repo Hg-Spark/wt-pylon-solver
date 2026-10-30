@@ -4,8 +4,6 @@ import argparse
 import csv
 import json
 import re
-import shutil
-from io import BytesIO
 from pathlib import Path
 from typing import Any, Iterable
 
@@ -200,27 +198,13 @@ def write_aircraft(aircraft: str, source: DatamineSource, output: Path, icon_typ
 
 
 def optimize_pylon_icon(source: Path, destination: Path) -> tuple[int, int]:
-    """Keep the source PNG as fallback; generate a <=96px transparent WebP.
-
-    Try lossy Q85/Q90 and lossless, then keep the smallest encoded result.
-    The PNG fallback also preserves the original full-resolution asset.
-    """
-    shutil.copyfile(source, destination)
+    """Losslessly transcode a Datamine PNG to WebP at its original resolution."""
     with Image.open(source) as image:
-        icon = image.convert("RGBA")
-        icon.thumbnail((96, 96), Image.Resampling.LANCZOS)
-        candidates: list[bytes] = []
-        for options in (
-            {"quality": 85, "method": 4},
-            {"quality": 90, "method": 4},
-            {"lossless": True, "method": 4},
-        ):
-            output = BytesIO()
-            icon.save(output, format="WEBP", **options)
-            candidates.append(output.getvalue())
-    encoded = min(candidates, key=len)
-    destination.with_suffix(".webp").write_bytes(encoded)
-    return source.stat().st_size, len(encoded)
+        image.convert("RGBA").save(
+            destination, format="WEBP", lossless=True, method=4, exact=True,
+        )
+    return source.stat().st_size, destination.stat().st_size
+
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="Generate static wt-pylon-solver aircraft data.")
@@ -256,35 +240,31 @@ def main() -> None:
         icon_root = root / "atlases.vromfs.bin_u/gameuiskin"
         icon_output = output.parent / "icons"
         icon_output.mkdir(parents=True, exist_ok=True)
+        # Previous builds could leave fallback PNGs; never ship them.
+        for path in icon_output.glob("*.png"):
+            path.unlink()
         if args.clean:
-            for pattern in ("*.png", "*.webp"):
-                for path in icon_output.glob(pattern):
-                    path.unlink()
-        copied = 0
-        optimized = 0
+            for path in icon_output.glob("*.webp"):
+                path.unlink()
+
+        written_icons = 0
         original_bytes = 0
         webp_bytes = 0
         for icon_type in sorted(icon_types):
-            icon_file = icon_root / f"{icon_type}.png"
-            if not icon_file.is_file():
-                continue
-            destination = icon_output / icon_file.name
-            try:
-                original_size, webp_size = optimize_pylon_icon(icon_file, destination)
-            except (OSError, ValueError) as exc:
-                # The original PNG remains available if a source or encoder fails.
-                shutil.copyfile(icon_file, destination)
-                destination.with_suffix(".webp").unlink(missing_ok=True)
-                print(f"warning: WebP optimization failed for {icon_type}: {exc}")
-            else:
-                optimized += 1
-                original_bytes += original_size
-                webp_bytes += webp_size
-            copied += 1
-        print(f"copied {copied}/{len(icon_types)} pylon icons")
-        if optimized:
+            source_icon = icon_root / f"{icon_type}.png"
+            if not source_icon.is_file():
+                raise SystemExit(f"Missing Datamine icon: {source_icon}")
+            original_size, webp_size = optimize_pylon_icon(
+                source_icon, icon_output / f"{icon_type}.webp",
+            )
+            original_bytes += original_size
+            webp_bytes += webp_size
+            written_icons += 1
+
+        print(f"generated {written_icons}/{len(icon_types)} lossless WebP icons")
+        if written_icons:
             saved = (1 - webp_bytes / original_bytes) * 100
-            print(f"optimized {optimized} WebP icons: {original_bytes} -> {webp_bytes} bytes ({saved:.1f}% smaller)")
+            print(f"lossless WebP icons: {original_bytes} -> {webp_bytes} bytes ({saved:.1f}% smaller)")
 
     if written == 0:
         raise SystemExit("No aircraft data was generated")
