@@ -36,6 +36,7 @@ const previewMode = ref<"initial" | "result">("initial");
 const mountSearch = ref("");
 const mountCategory = ref("all");
 const missingIcons = ref<Set<string>>(new Set());
+const failedWebpIcons = ref<Set<string>>(new Set());
 const stationMenus = new Map<number, {toggle: (event: Event) => void; hide: () => void}>();
 
 
@@ -128,6 +129,11 @@ interface MountWeaponGroup {
   iconOption: PreparedOption;
   variants: PreparedOption[];
 }
+interface MountCategoryGroup {
+  key: string;
+  label: string;
+  groups: MountWeaponGroup[];
+}
 
 function mountCategories(slot: number): Array<{value: string; label: string}> {
   const categories = new Map<string, string>();
@@ -170,6 +176,28 @@ function mountOptionGroups(slot: number): MountWeaponGroup[] {
     .sort((a, b) => a.label.localeCompare(b.label, "zh-CN") || a.key.localeCompare(b.key));
 }
 
+function mountCategoryGroups(slot: number): MountCategoryGroup[] {
+  const groups = mountOptionGroups(slot);
+  const categories = new Map<string, MountCategoryGroup>();
+  for (const group of groups) {
+    const category = group.iconOption.category;
+    if (!categories.has(category)) {
+      categories.set(category, {key: category, label: group.iconOption.categoryLabel, groups: []});
+    }
+    categories.get(category)!.groups.push(group);
+  }
+  const priority = ["bomb", "rocket", "missile", "other"];
+  return [...categories.values()].sort((a, b) =>
+    (priority.indexOf(a.key) === -1 ? priority.length : priority.indexOf(a.key))
+    - (priority.indexOf(b.key) === -1 ? priority.length : priority.indexOf(b.key))
+    || a.label.localeCompare(b.label, "zh-CN"));
+}
+
+function singleMountLabel(group: MountWeaponGroup): string {
+  const count = group.variants[0].count;
+  return count === 1 ? group.label : `${group.label} ×${count}`;
+}
+
 function clearFixedPylon(slot: number): void {
   store.setFixedPylon(slot, undefined);
   stationMenus.get(slot)?.hide();
@@ -178,12 +206,20 @@ function clearFixedPylon(slot: number): void {
 function iconSrc(option: PreparedOption | null): string | null {
   const name = option?.icon_type;
   if (!name || !/^[a-z0-9_-]+$/.test(name) || missingIcons.value.has(name)) return null;
-  return `${import.meta.env.BASE_URL}icons/${name}.png`;
+  const ext = failedWebpIcons.value.has(name) ? "png" : "webp";
+  return `${import.meta.env.BASE_URL}icons/${name}.${ext}`;
 }
 
-function markIconMissing(option: PreparedOption | null): void {
-  if (!option?.icon_type) return;
-  missingIcons.value = new Set([...missingIcons.value, option.icon_type]);
+function handleIconError(event: Event, option: PreparedOption | null): void {
+  const name = option?.icon_type;
+  const image = event.target;
+  if (!name || !(image instanceof HTMLImageElement)) return;
+  if (!failedWebpIcons.value.has(name)) {
+    failedWebpIcons.value = new Set([...failedWebpIcons.value, name]);
+    image.src = `${import.meta.env.BASE_URL}icons/${name}.png`;
+  } else {
+    missingIcons.value = new Set([...missingIcons.value, name]);
+  }
 }
 
 function mountName(station: MountStation): string {
@@ -299,7 +335,7 @@ function formatReward(value: number | null): string {
                 @click="openMountMenu(station.slot, $event)"
               >
                 <span class="mount-preview-icon">
-                  <img v-if="iconSrc(station.option)" :src="iconSrc(station.option) || ''" alt="" @error="markIconMissing(station.option)" />
+                  <img v-if="iconSrc(station.option)" :src="iconSrc(station.option) || ''" alt="" @error="handleIconError($event, station.option)" />
                   <span v-else class="mount-preview-icon-fallback">{{ station.state === "free" ? "+" : station.option ? "◇" : "—" }}</span>
                 </span>
                 <span v-if="station.option && (station.selection?.count ?? station.option.count) > 1" class="mount-preview-count">×{{ station.selection?.count ?? station.option.count }}</span>
@@ -329,29 +365,48 @@ function formatReward(value: number | null): string {
                   <button
                     v-if="showEmptyMount()"
                     type="button"
-                    class="mount-picker-empty"
+                    class="mount-picker-single"
                     :class="{chosen: station.state === 'empty'}"
                     @click="selectMount(station.slot, null)"
                   >
-                    空挂载
+                    <span class="mount-picker-icon-fallback">—</span>
+                    <span class="mount-picker-weapon-name">空挂载</span>
                   </button>
-                  <div v-for="group in mountOptionGroups(station.slot)" :key="group.key" class="mount-picker-weapon-row">
-                    <img v-if="iconSrc(group.iconOption)" :src="iconSrc(group.iconOption) || ''" alt="" @error="markIconMissing(group.iconOption)" />
-                    <span v-else class="mount-picker-icon-fallback">◇</span>
-                    <span class="mount-picker-weapon-name" :title="group.label">{{ group.label }}</span>
-                    <div class="mount-picker-variants" role="group" :aria-label="`${group.label} 数量`">
+                  <section v-for="category in mountCategoryGroups(station.slot)" :key="category.key" class="mount-picker-category-section">
+                    <h4 class="mount-picker-section-label">{{ category.label }}</h4>
+                    <template v-for="group in category.groups" :key="group.key">
                       <button
-                        v-for="variant in group.variants"
-                        :key="variant.option_id"
+                        v-if="group.variants.length === 1"
                         type="button"
-                        class="mount-picker-variant"
-                        :class="{chosen: store.fixedPylons[station.slot] === variant.option_id}"
-                        :title="variant.option_id"
-                        @click="selectMount(station.slot, variant.option_id)"
-                      >×{{ variant.count }}</button>
-                    </div>
-                  </div>
-                  <span v-if="!showEmptyMount() && !mountOptionGroups(station.slot).length" class="mount-picker-no-matches">没有匹配的挂载</span>
+                        class="mount-picker-single"
+                        :class="{chosen: store.fixedPylons[station.slot] === group.variants[0].option_id}"
+                        :title="group.variants[0].option_id"
+                        @click="selectMount(station.slot, group.variants[0].option_id)"
+                      >
+                        <img v-if="iconSrc(group.iconOption)" :src="iconSrc(group.iconOption) || ''" alt="" loading="lazy" @error="handleIconError($event, group.iconOption)" />
+                        <span v-else class="mount-picker-icon-fallback">◇</span>
+                        <span class="mount-picker-weapon-name">{{ singleMountLabel(group) }}</span>
+                      </button>
+                      <div v-else class="mount-picker-weapon-row">
+                        <img v-if="iconSrc(group.iconOption)" :src="iconSrc(group.iconOption) || ''" alt="" loading="lazy" @error="handleIconError($event, group.iconOption)" />
+                        <span v-else class="mount-picker-icon-fallback">◇</span>
+                        <span class="mount-picker-weapon-name" :title="group.label">{{ group.label }}</span>
+                        <div class="mount-picker-variants" role="group" :aria-label="`${group.label} 数量`">
+                          <button
+                            v-for="variant in group.variants"
+                            :key="variant.option_id"
+                            type="button"
+                            class="mount-picker-variant"
+                            :class="{chosen: store.fixedPylons[station.slot] === variant.option_id}"
+                            :title="variant.option_id"
+                            :aria-label="`${group.label} ×${variant.count}`"
+                            @click="selectMount(station.slot, variant.option_id)"
+                          >×{{ variant.count }}</button>
+                        </div>
+                      </div>
+                    </template>
+                  </section>
+                  <span v-if="!showEmptyMount() && !mountCategoryGroups(station.slot).length" class="mount-picker-no-matches">没有匹配的挂载</span>
                 </div>
               </div>
             </Popover>
