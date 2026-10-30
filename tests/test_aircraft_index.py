@@ -4,9 +4,11 @@ import tempfile
 import unittest
 from pathlib import Path
 
+from PIL import Image
+
 from build_static_data import (
     AIRCRAFT_NAME_MARKERS, aircraft_names, aircraft_nation,
-    clean_aircraft_name, write_aircraft_index,
+    clean_aircraft_name, optimize_pylon_icon, write_aircraft_index,
 )
 
 
@@ -66,6 +68,26 @@ class AircraftIndexTest(unittest.TestCase):
             self.assertEqual(index["f_16a_block_72v_china"]["nation"], "china")
             self.assertEqual(index["f_15e"]["nation"], "usa")
             self.assertEqual(index["p_47m"]["zh"], "P-47M-1-RE")
+
+    def test_icon_optimization_preserves_png_and_transparency(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            original = root / "source.png"
+            fallback = root / "icon.png"
+            image = Image.new("RGBA", (160, 120), (0, 0, 0, 0))
+            for x in range(40, 120):
+                for y in range(30, 90):
+                    image.putpixel((x, y), (255, 50, 10, 255))
+            image.save(original)
+            source_size, compressed_size = optimize_pylon_icon(original, fallback)
+            self.assertEqual(fallback.read_bytes(), original.read_bytes())
+            self.assertEqual(source_size, original.stat().st_size)
+            self.assertEqual(compressed_size, fallback.with_suffix(".webp").stat().st_size)
+            with Image.open(fallback.with_suffix(".webp")) as optimized:
+                self.assertEqual(optimized.format, "WEBP")
+                self.assertEqual(optimized.size, (96, 72))
+                self.assertEqual(optimized.convert("RGBA").getpixel((0, 0))[3], 0)
+                self.assertEqual(optimized.convert("RGBA").getpixel((48, 36))[3], 255)
 
     def test_index_uses_only_generated_aircraft_data(self):
         with tempfile.TemporaryDirectory() as temp:
