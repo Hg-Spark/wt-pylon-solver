@@ -134,32 +134,41 @@ export const useLoadoutStore = defineStore("loadout", () => {
       slot_count: slotCount,
     };
   });
-  const fixedConflict = computed(() => {
-    const fixed = fixedPylons.value;
-    const all = new Map(pylons.value.map((pylon) => [pylon.slot, pylon]));
+  function validateFixedPylons(fixed: Readonly<FixedPylons>): string | null {
+    const bySlot = new Map(pylons.value.map((pylon) => [pylon.slot, pylon]));
     const locked = Object.entries(fixed);
     for (const [key, optionId] of locked) {
       const slot = Number(key);
+      if (!bySlot.has(slot)) return `P${slot} 不存在。`;
       if (optionId == null) continue;
-      const option = all.get(slot)?.options.find((item) => item.option_id === optionId);
+      const option = bySlot.get(slot)?.options.find((item) => item.option_id === optionId);
       if (!option) return `P${slot} 的固定预设已失效。`;
       for (const requiredId of option.required_option_ids || []) {
-        const match = pylons.value.find((pylon) => pylon.options.some((o) => o.option_id === requiredId));
-        if (!match) return `P${slot} 的 ${option.displayName} 缺少必要挂载。`;
-        if (Object.prototype.hasOwnProperty.call(fixed, match.slot) && fixed[match.slot] !== requiredId) {
-          return `P${slot} 的 ${option.displayName} 需要 P${match.slot} 的指定配套挂载。`;
+        const target = pylons.value.find((pylon) => pylon.options.some((item) => item.option_id === requiredId));
+        if (!target || target.slot === slot) {
+          return `P${slot} 的 ${option.displayName} 缺少可用的前置挂点。`;
+        }
+        if (Object.prototype.hasOwnProperty.call(fixed, target.slot) && fixed[target.slot] !== requiredId) {
+          return `P${slot} 的 ${option.displayName} 需要 P${target.slot} 的指定配套挂载。`;
         }
       }
       for (const [otherKey, otherId] of locked) {
         if (otherId == null || otherKey === key) continue;
-        const other = optionById.value.get(otherId);
+        const other = bySlot.get(Number(otherKey))?.options.find((item) => item.option_id === otherId);
         if (option.banned_option_ids?.includes(otherId) || other?.banned_option_ids?.includes(optionId)) {
           return `P${slot} 与 P${otherKey} 的固定挂载互斥。`;
         }
       }
     }
     return null;
-  });
+  }
+
+  const fixedConflict = computed(() => validateFixedPylons(fixedPylons.value));
+
+  function fixedPylonChoiceConflict(slot: number, optionId: string | null): string | null {
+    return validateFixedPylons({...fixedPylons.value, [slot]: optionId});
+  }
+
   async function loadOptions(): Promise<void> {
     const requestedAircraft = normalizedAircraft.value;
     if (!requestedAircraft) {
@@ -508,6 +517,7 @@ export const useLoadoutStore = defineStore("loadout", () => {
     fixedPylons,
     initialSummary,
     fixedConflict,
+    fixedPylonChoiceConflict,
     collapsedGroups,
     status,
     errorMessage,
