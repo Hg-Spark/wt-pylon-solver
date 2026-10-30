@@ -5,8 +5,11 @@ import csv
 import json
 import re
 import shutil
+from io import BytesIO
 from pathlib import Path
 from typing import Any, Iterable
+
+from PIL import Image
 
 from datamine_loadout_parser import DatamineError, DatamineSource, parse_datamine_loadout
 
@@ -195,6 +198,30 @@ def write_aircraft(aircraft: str, source: DatamineSource, output: Path, icon_typ
     return True
 
 
+
+def optimize_pylon_icon(source: Path, destination: Path) -> tuple[int, int]:
+    """Keep the source PNG as fallback; generate a <=96px transparent WebP.
+
+    Try lossy Q85/Q90 and lossless, then keep the smallest encoded result.
+    The PNG fallback also preserves the original full-resolution asset.
+    """
+    shutil.copyfile(source, destination)
+    with Image.open(source) as image:
+        icon = image.convert("RGBA")
+        icon.thumbnail((96, 96), Image.Resampling.LANCZOS)
+        candidates: list[bytes] = []
+        for options in (
+            {"quality": 85, "method": 4},
+            {"quality": 90, "method": 4},
+            {"lossless": True, "method": 4},
+        ):
+            output = BytesIO()
+            icon.save(output, format="WEBP", **options)
+            candidates.append(output.getvalue())
+    encoded = min(candidates, key=len)
+    destination.with_suffix(".webp").write_bytes(encoded)
+    return source.stat().st_size, len(encoded)
+
 def main() -> None:
     parser = argparse.ArgumentParser(description="Generate static wt-pylon-solver aircraft data.")
     parser.add_argument("aircraft", nargs="*", help="Exact Datamine aircraft IDs, e.g. su_34 f_15e")
@@ -230,15 +257,34 @@ def main() -> None:
         icon_output = output.parent / "icons"
         icon_output.mkdir(parents=True, exist_ok=True)
         if args.clean:
-            for path in icon_output.glob("*.png"):
-                path.unlink()
+            for pattern in ("*.png", "*.webp"):
+                for path in icon_output.glob(pattern):
+                    path.unlink()
         copied = 0
+        optimized = 0
+        original_bytes = 0
+        webp_bytes = 0
         for icon_type in sorted(icon_types):
             icon_file = icon_root / f"{icon_type}.png"
-            if icon_file.is_file():
-                shutil.copyfile(icon_file, icon_output / icon_file.name)
-                copied += 1
+            if not icon_file.is_file():
+                continue
+            destination = icon_output / icon_file.name
+            try:
+                original_size, webp_size = optimize_pylon_icon(icon_file, destination)
+            except (OSError, ValueError) as exc:
+                # The original PNG remains available if a source or encoder fails.
+                shutil.copyfile(icon_file, destination)
+                destination.with_suffix(".webp").unlink(missing_ok=True)
+                print(f"warning: WebP optimization failed for {icon_type}: {exc}")
+            else:
+                optimized += 1
+                original_bytes += original_size
+                webp_bytes += webp_size
+            copied += 1
         print(f"copied {copied}/{len(icon_types)} pylon icons")
+        if optimized:
+            saved = (1 - webp_bytes / original_bytes) * 100
+            print(f"optimized {optimized} WebP icons: {original_bytes} -> {webp_bytes} bytes ({saved:.1f}% smaller)")
 
     if written == 0:
         raise SystemExit("No aircraft data was generated")
