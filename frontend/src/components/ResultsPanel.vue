@@ -34,6 +34,7 @@ const store = useLoadoutStore();
 const selectedRowId = ref<string | null>(null);
 const previewMode = ref<"initial" | "result">("initial");
 const mountSearch = ref("");
+const mountCategory = ref("all");
 const missingIcons = ref<Set<string>>(new Set());
 const stationMenus = new Map<number, {toggle: (event: Event) => void; hide: () => void}>();
 
@@ -109,6 +110,7 @@ function registerMountMenu(slot: number, instance: unknown): void {
 
 function openMountMenu(slot: number, event: Event): void {
   mountSearch.value = "";
+  mountCategory.value = "all";
   for (const [other, menu] of stationMenus) {
     if (other !== slot) menu.hide();
   }
@@ -120,13 +122,57 @@ function selectMount(slot: number, optionId: string | null | undefined): void {
   stationMenus.get(slot)?.hide();
 }
 
-function mountOptions(slot: number): PreparedOption[] {
-  const match = store.pylons.find((pylon) => pylon.slot === slot);
+interface MountWeaponGroup {
+  key: string;
+  label: string;
+  iconOption: PreparedOption;
+  variants: PreparedOption[];
+}
+
+function mountCategories(slot: number): Array<{value: string; label: string}> {
+  const categories = new Map<string, string>();
+  for (const option of store.pylons.find((pylon) => pylon.slot === slot)?.options || []) {
+    categories.set(option.category, option.categoryLabel);
+  }
+  return [
+    {value: "all", label: "全部"},
+    {value: "empty", label: "空挂载"},
+    ...[...categories].sort((a, b) => a[1].localeCompare(b[1], "zh-CN"))
+      .map(([value, label]) => ({value, label})),
+  ];
+}
+
+function showEmptyMount(): boolean {
   const query = mountSearch.value.trim().toLowerCase();
-  return (match?.options || []).filter((option) => !query ||
-    option.displayName.toLowerCase().includes(query) ||
-    option.option_id.toLowerCase().includes(query))
-    .sort((a, b) => a.displayName.localeCompare(b.displayName, "zh-CN"));
+  return (mountCategory.value === "all" || mountCategory.value === "empty")
+    && (!query || "空挂载".includes(query) || "empty".includes(query));
+}
+
+function mountOptionGroups(slot: number): MountWeaponGroup[] {
+  const query = mountSearch.value.trim().toLowerCase();
+  const groups = new Map<string, MountWeaponGroup>();
+  for (const option of store.pylons.find((pylon) => pylon.slot === slot)?.options || []) {
+    if (mountCategory.value !== "all" && option.category !== mountCategory.value) continue;
+    if (query && ![option.displayName, option.weapon_id, option.option_id, option.categoryLabel]
+      .some((value) => value?.toLowerCase().includes(query))) continue;
+    const key = `${option.category}:${option.weapon_id || option.displayName || option.option_id}:${Boolean(option.support)}`;
+    const group = groups.get(key);
+    if (group) group.variants.push(option);
+    else groups.set(key, {
+      key, label: option.displayName, iconOption: option, variants: [option],
+    });
+  }
+  return [...groups.values()]
+    .map((group) => ({
+      ...group,
+      variants: group.variants.sort((a, b) => a.count - b.count || a.option_id.localeCompare(b.option_id)),
+    }))
+    .sort((a, b) => a.label.localeCompare(b.label, "zh-CN") || a.key.localeCompare(b.key));
+}
+
+function clearFixedPylon(slot: number): void {
+  store.setFixedPylon(slot, undefined);
+  stationMenus.get(slot)?.hide();
 }
 
 function iconSrc(option: PreparedOption | null): string | null {
@@ -229,8 +275,7 @@ function formatReward(value: number | null): string {
     <section v-if="store.pylons.length" class="mount-preview" aria-label="挂载布局编辑与预览">
       <div class="mount-preview-heading">
         <div>
-          <strong>{{ previewMode === "initial" ? "初始挂载 · 点击挂点直接编辑" : `方案 #${activeRow?.rank || 1} · 完整挂载` }}</strong>
-          <p>{{ previewMode === "initial" ? "固定武器不计入左侧新增数量约束；自由挂点由求解器补齐。" : "点击下方结果行切换方案；不会修改初始配置。" }}</p>
+          <strong>{{ previewMode === "initial" ? "初始挂载" : `方案 #${activeRow?.rank || 1} · 完整挂载` }}</strong>
         </div>
         <div class="mount-preview-actions">
           <Button label="初始配置" :outlined="previewMode !== 'initial'" size="small" severity="secondary" @click="previewMode = 'initial'" />
@@ -241,50 +286,72 @@ function formatReward(value: number | null): string {
         {{ store.fixedConflict }}
       </div>
       <div class="mount-preview-scroll" tabindex="0" role="region" aria-label="挂点列表，可横向滚动">
-        <div class="mount-preview-grid" :style="{gridTemplateColumns: `repeat(${Math.max(1, mountStations.length)}, minmax(90px, 1fr))`}">
+        <div class="mount-preview-grid">
           <div v-for="station in mountStations" :key="station.slot" class="mount-preview-station-frame">
-            <button
-              type="button"
-              class="mount-preview-station"
-              :class="[`mount-preview-station-${station.state}`, { 'mount-preview-station-support': station.option?.support }]"
-              :disabled="previewMode === 'result'"
-              :aria-label="`P${station.slot}：${station.option ? mountName(station) : station.state === 'free' ? '自由' : '空'}，点击编辑`"
-              @click="openMountMenu(station.slot, $event)"
-            >
-              <span class="mount-preview-number">P{{ station.slot }}</span>
-              <span class="mount-preview-icon">
-                <img v-if="iconSrc(station.option)" :src="iconSrc(station.option) || ''" alt="" @error="markIconMissing(station.option)" />
-                <span v-else class="mount-preview-icon-fallback">{{ station.state === "free" ? "+" : station.option ? "◇" : "—" }}</span>
-              </span>
-              <strong class="mount-preview-weapon" :title="station.option?.option_id || undefined">
-                {{ station.option ? mountName(station) : station.state === "free" ? "自由" : station.state === "result" ? "空" : station.state === "empty" && previewMode === "initial" ? "固定为空" : "空" }}
-              </strong>
-              <span v-if="station.option" class="mount-preview-count">×{{ station.selection?.count ?? station.option.count }}</span>
-              <span v-else-if="previewMode === 'initial'" class="mount-preview-count">{{ station.state === 'free' ? '可自动补齐' : '禁止挂载' }}</span>
-              <span v-if="station.option?.support" class="mount-preview-device">配套设备</span>
-            </button>
+            <span class="mount-preview-number">P{{ station.slot }}</span>
+            <div class="mount-preview-tile">
+              <button
+                type="button"
+                class="mount-preview-station"
+                :class="[`mount-preview-station-${station.state}`, {'mount-preview-station-support': station.option?.support}]"
+                :disabled="previewMode === 'result'"
+                :aria-label="`P${station.slot}：${station.option ? mountName(station) : station.state === 'free' ? '自由' : '空挂载'}`"
+                @click="openMountMenu(station.slot, $event)"
+              >
+                <span class="mount-preview-icon">
+                  <img v-if="iconSrc(station.option)" :src="iconSrc(station.option) || ''" alt="" @error="markIconMissing(station.option)" />
+                  <span v-else class="mount-preview-icon-fallback">{{ station.state === "free" ? "+" : station.option ? "◇" : "—" }}</span>
+                </span>
+                <span v-if="station.option && (station.selection?.count ?? station.option.count) > 1" class="mount-preview-count">×{{ station.selection?.count ?? station.option.count }}</span>
+              </button>
+              <button
+                v-if="previewMode === 'initial' && station.state !== 'free'"
+                type="button"
+                class="mount-preview-clear"
+                :aria-label="`清除 P${station.slot} 固定挂载，恢复自由`"
+                title="恢复自由"
+                @click.stop="clearFixedPylon(station.slot)"
+              >×</button>
+            </div>
+            <span class="mount-preview-weapon" :title="station.option?.option_id || undefined">
+              {{ station.option ? mountName(station) : station.state === "free" ? "自由" : "空" }}
+            </span>
             <Popover v-if="previewMode === 'initial'" :ref="(instance) => registerMountMenu(station.slot, instance)" append-to="body" class="mount-picker-popover">
               <div class="mount-picker">
-                <strong>P{{ station.slot }} · 选择初始挂载</strong>
-                <div class="mount-picker-special">
-                  <button type="button" :class="{chosen: station.state === 'free'}" @click="selectMount(station.slot, undefined)">+ 自由（自动求解）</button>
-                  <button type="button" :class="{chosen: station.state === 'empty'}" @click="selectMount(station.slot, null)">— 固定为空</button>
+                <strong>P{{ station.slot }} · 挂载</strong>
+                <div class="mount-picker-filters">
+                  <select v-model="mountCategory" aria-label="挂载分类" class="mount-picker-category">
+                    <option v-for="category in mountCategories(station.slot)" :key="category.value" :value="category.value">{{ category.label }}</option>
+                  </select>
+                  <InputText v-model="mountSearch" class="mount-picker-search" size="small" placeholder="搜索武器…" aria-label="搜索挂点武器" />
                 </div>
-                <InputText v-model="mountSearch" class="mount-picker-search" size="small" placeholder="搜索该挂点武器…" aria-label="搜索挂点武器" />
                 <div class="mount-picker-options">
                   <button
-                    v-for="option in mountOptions(station.slot)"
-                    :key="option.option_id"
+                    v-if="showEmptyMount()"
                     type="button"
-                    class="mount-picker-option"
-                    :class="{chosen: store.fixedPylons[station.slot] === option.option_id}"
-                    @click="selectMount(station.slot, option.option_id)"
+                    class="mount-picker-empty"
+                    :class="{chosen: station.state === 'empty'}"
+                    @click="selectMount(station.slot, null)"
                   >
-                    <img v-if="iconSrc(option)" :src="iconSrc(option) || ''" alt="" @error="markIconMissing(option)" />
-                    <span v-else class="mount-picker-icon-fallback">◇</span>
-                    <span>{{ option.displayName }}<small>×{{ option.count }}{{ option.support ? " · 配套设备" : "" }}</small></span>
+                    空挂载
                   </button>
-                  <span v-if="!mountOptions(station.slot).length" class="mount-picker-no-matches">没有匹配的挂载预设</span>
+                  <div v-for="group in mountOptionGroups(station.slot)" :key="group.key" class="mount-picker-weapon-row">
+                    <img v-if="iconSrc(group.iconOption)" :src="iconSrc(group.iconOption) || ''" alt="" @error="markIconMissing(group.iconOption)" />
+                    <span v-else class="mount-picker-icon-fallback">◇</span>
+                    <span class="mount-picker-weapon-name" :title="group.label">{{ group.label }}</span>
+                    <div class="mount-picker-variants" :aria-label="`${group.label} 数量`">
+                      <button
+                        v-for="variant in group.variants"
+                        :key="variant.option_id"
+                        type="button"
+                        class="mount-picker-variant"
+                        :class="{chosen: store.fixedPylons[station.slot] === variant.option_id}"
+                        :title="variant.option_id"
+                        @click="selectMount(station.slot, variant.option_id)"
+                      >×{{ variant.count }}</button>
+                    </div>
+                  </div>
+                  <span v-if="!showEmptyMount() && !mountOptionGroups(station.slot).length" class="mount-picker-no-matches">没有匹配的挂载</span>
                 </div>
               </div>
             </Popover>
@@ -297,9 +364,8 @@ function formatReward(value: number | null): string {
         <div><span>重量</span><strong>{{ metrics.total_weight_kg == null ? '未知' : `${formatNumber(metrics.total_weight_kg, 1)} kg` }}</strong></div>
         <div><span>战区收益</span><strong>{{ formatReward(metrics.reward ?? null) }}</strong></div>
       </div>
-      <div class="mount-preview-footer">
-        <span>{{ previewMode === "initial" ? "只统计固定部分；实际伤害未知和重量缺失会明确标出。" : "已选方案完整统计；重量缺失时不显示不准确的合计。" }}</span>
-        <Button v-if="previewMode === 'result' && activeRow" size="small" label="以此方案作为初始挂载" severity="secondary" text @click="store.useSolutionAsInitial(activeRow.solution)" />
+      <div v-if="previewMode === 'result' && activeRow" class="mount-preview-footer">
+        <Button size="small" label="以此方案作为初始挂载" severity="secondary" text @click="store.useSolutionAsInitial(activeRow.solution)" />
       </div>
     </section>
 
