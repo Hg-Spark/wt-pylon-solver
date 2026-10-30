@@ -261,7 +261,9 @@ button:disabled { cursor: not-allowed; }
 .mount-picker-weapon-name { min-width: 0; overflow-wrap: anywhere; }
 .mount-picker-variants { display: grid; grid-template-columns: repeat(3, 44px); gap: 4px; justify-content: end; }
 .mount-picker-variant { min-width: 44px; min-height: 44px; padding: 2px 4px; border: 1px solid var(--line); border-radius: 4px; background: var(--surface); color: var(--text); font-size: 12px; font-weight: 700; cursor: pointer; }
-.mount-picker-variant:hover { border-color: var(--p-primary-400); background: var(--primary-soft); }
+.mount-picker-variant:hover:not(:disabled) { border-color: var(--p-primary-400); background: var(--primary-soft); }
+.mount-picker-single:disabled, .mount-picker-variant:disabled { opacity: .48; cursor: not-allowed; }
+.mount-picker-relations { display: block; margin-top: 3px; color: var(--muted); font-size: 10px; line-height: 1.35; font-weight: 400; }
 .mount-picker-single.chosen, .mount-picker-variant.chosen { border-color: var(--p-primary-400); background: var(--primary-soft); }
 .mount-picker-single:focus-visible, .mount-picker-variant:focus-visible { outline: 2px solid var(--primary); outline-offset: -2px; }
 .mount-picker-icon-fallback { display: grid; place-items: center; width: 32px; height: 32px; color: var(--muted); }
@@ -287,6 +289,8 @@ button:disabled { cursor: not-allowed; }
 .results-datatable .p-datatable-thead > tr > th { padding: 11px 10px; color: var(--muted); font-size: 12px; font-weight: 700; white-space: nowrap; }
 .results-datatable .p-datatable-tbody > tr > td { padding: 12px 10px; font-size: 14px; vertical-align: middle; }
 .results-datatable .numeric-column { text-align: right; }
+.result-composition-column { max-width: 380px; min-width: 220px; }
+.result-composition { display: block; max-width: 380px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--muted-strong); font-size: 12px; }
 .results-datatable th.numeric-column .p-datatable-column-header-content { justify-content: flex-end; }
 .results-datatable .recommended-row > td { background: color-mix(in srgb, var(--primary-soft) 28%, var(--surface)); }
 .table-rank { color: var(--primary-dark); font-size: 15px; font-weight: 800; }
