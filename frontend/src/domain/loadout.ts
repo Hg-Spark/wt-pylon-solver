@@ -21,10 +21,22 @@ export function solutionId(solution: Solution): string {
   return `composition:${loadoutText(solution)}`;
 }
 
+export function weaponTypeCount(solution: Solution): number {
+  const selections = solution.selections;
+  if (selections) {
+    return new Set(selections.filter((item) => !item.support)
+      .map((item) => item.weapon_id || item.weapon_display_name || item.option_id)).size;
+  }
+  return Object.keys(solution.weapon_counts || {}).length;
+}
+
 export function loadoutText(solution: Solution): string {
-  return Object.entries(solution.weapon_counts || {})
-    .map(([name, count]) => `${name} ×${count}`)
-    .join(" · ") || "未读取挂载组合";
+  const counts = Object.entries(solution.weapon_counts || {});
+  if (counts.length) {
+    return counts.sort(([left], [right]) => left.localeCompare(right, "zh-CN"))
+      .map(([name, count]) => count === 1 ? name : `${name} ×${count}`).join(" · ");
+  }
+  return solution.selections?.length === 0 ? "无挂载" : "未读取挂载组合";
 }
 
 function selectionGroupKey(selection: Selection): string {
