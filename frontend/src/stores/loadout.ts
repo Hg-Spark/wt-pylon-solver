@@ -205,12 +205,9 @@ export const useLoadoutStore = defineStore("loadout", () => {
       quantitySettings.value = Object.fromEntries(
         Object.entries(previousQuantitySettings).filter(([rowId]) => logicalRowIds.has(rowId)),
       );
-      selectedOptions.value = new Set(options.value
-        .filter((option) => !option.support && option.damage != null && option.damage > 0
-          && (option.category === "bomb" || option.category === "rocket"
-            || (option.category === "missile" && option.subcategory !== "air_to_air")))
-        .map((option) => option.option_id));
-        status.value = "ready";
+      // Newly loaded aircraft start with no candidate weapons enabled.
+      selectedOptions.value = new Set();
+      status.value = "ready";
     } catch (error) {
       if (requestId !== loadRequestId || controller.signal.aborted) return;
       clearLoadedAircraft();
