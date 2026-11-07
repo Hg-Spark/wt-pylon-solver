@@ -17,7 +17,7 @@ const inputFiles = (await readdir(sources).catch(() => []))
 
 // Remove old per-icon WebPs and previous atlas builds.
 for (const file of await readdir(output)) {
-  if (file === "atlas.json" || /\\.(png|webp)$/i.test(file)) {
+  if (file === "atlas.json" || /\.(png|webp)$/i.test(file)) {
     await rm(join(output, file));
   }
 }
