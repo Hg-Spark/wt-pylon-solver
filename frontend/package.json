@@ -6,7 +6,9 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
-    "typecheck": "vue-tsc --noEmit"
+    "typecheck": "vue-tsc --noEmit",
+    "predev": "node scripts/build-icon-atlas.mjs",
+    "prebuild": "node scripts/build-icon-atlas.mjs"
   },
   "dependencies": {
     "pinia": "3.0.3",
@@ -18,6 +20,8 @@
     "@vitejs/plugin-vue": "6.0.1",
     "typescript": "5.9.2",
     "vite": "7.1.5",
-    "vue-tsc": "3.0.6"
+    "vue-tsc": "3.0.6",
+    "sharp": "0.33.5",
+    "spritesmith": "3.5.1"
   }
 }

@@ -3,7 +3,10 @@
 dist/
 frontend/node_modules/
 frontend/public/data/*.json
+frontend/.icon-source/
 frontend/public/icons/*.png
+frontend/public/icons/*.webp
+frontend/public/icons/atlas.json
 !frontend/public/data/.gitkeep
 __pycache__/
 *.py[cod]

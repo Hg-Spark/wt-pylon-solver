@@ -19,6 +19,7 @@ const aircraftSearchError = ref("");
 const selectedNation = ref("");
 
 onMounted(async () => {
+  if (recentIds.value[0]) void loadAircraft(recentIds.value[0]);
   try {
     aircraftIndex.value = await fetchAircraftIndex();
     if (aircraftInput.value === store.aircraft) {
