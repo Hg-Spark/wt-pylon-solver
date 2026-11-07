@@ -7,7 +7,7 @@ import re
 from pathlib import Path
 from typing import Any, Iterable
 
-from PIL import Image
+from shutil import copyfile
 
 from datamine_loadout_parser import DatamineError, DatamineSource, parse_datamine_loadout
 
@@ -197,15 +197,6 @@ def write_aircraft(aircraft: str, source: DatamineSource, output: Path, icon_typ
 
 
 
-def optimize_pylon_icon(source: Path, destination: Path) -> tuple[int, int]:
-    """Losslessly transcode a Datamine PNG to WebP at its original resolution."""
-    with Image.open(source) as image:
-        image.convert("RGBA").save(
-            destination, format="WEBP", lossless=True, method=4, exact=True,
-        )
-    return source.stat().st_size, destination.stat().st_size
-
-
 def main() -> None:
     parser = argparse.ArgumentParser(description="Generate static wt-pylon-solver aircraft data.")
     parser.add_argument("aircraft", nargs="*", help="Exact Datamine aircraft IDs, e.g. su_34 f_15e")
@@ -236,35 +227,20 @@ def main() -> None:
     for aircraft in aircraft_ids:
         written += int(write_aircraft(aircraft, source, output, icon_types))
 
+    # Keep the original Datamine PNGs for the Node sprite-atlas build step.
+    icon_source = output.parent / ".icon-source"
+    icon_source.mkdir(parents=True, exist_ok=True)
+    for path in icon_source.glob("*.png"):
+        path.unlink()
+
     if root is not None:
         icon_root = root / "atlases.vromfs.bin_u/gameuiskin"
-        icon_output = output.parent / "icons"
-        icon_output.mkdir(parents=True, exist_ok=True)
-        # Previous builds could leave fallback PNGs; never ship them.
-        for path in icon_output.glob("*.png"):
-            path.unlink()
-        if args.clean:
-            for path in icon_output.glob("*.webp"):
-                path.unlink()
-
-        written_icons = 0
-        original_bytes = 0
-        webp_bytes = 0
         for icon_type in sorted(icon_types):
             source_icon = icon_root / f"{icon_type}.png"
             if not source_icon.is_file():
                 raise SystemExit(f"Missing Datamine icon: {source_icon}")
-            original_size, webp_size = optimize_pylon_icon(
-                source_icon, icon_output / f"{icon_type}.webp",
-            )
-            original_bytes += original_size
-            webp_bytes += webp_size
-            written_icons += 1
-
-        print(f"generated {written_icons}/{len(icon_types)} lossless WebP icons")
-        if written_icons:
-            saved = (1 - webp_bytes / original_bytes) * 100
-            print(f"lossless WebP icons: {original_bytes} -> {webp_bytes} bytes ({saved:.1f}% smaller)")
+            copyfile(source_icon, icon_source / f"{icon_type}.png")
+        print(f"prepared {len(icon_types)} icon PNGs for sprite atlas")
 
     if written == 0:
         raise SystemExit("No aircraft data was generated")
