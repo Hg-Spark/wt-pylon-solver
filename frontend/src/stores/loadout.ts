@@ -1,6 +1,7 @@
 import {computed, ref, watch} from "vue";
 import {defineStore} from "pinia";
 import {fetchOptions} from "../services/api";
+import {readRecentAircraft} from "../domain/aircraft";
 import {
   buildOptionRows,
   groupRows,
@@ -33,7 +34,7 @@ interface RowQuantitySetting {
 }
 
 export const useLoadoutStore = defineStore("loadout", () => {
-  const aircraft = ref("su_34");
+  const aircraft = ref(readRecentAircraft()[0] || "");
   const loadedAircraft = ref<string | null>(null);
   const targetDamage = ref(23310);
   const rewardProfile = ref<BombingRewardProfile | null>(null);
