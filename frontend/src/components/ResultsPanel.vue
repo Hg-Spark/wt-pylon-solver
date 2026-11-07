@@ -1,5 +1,6 @@
 <script setup lang="ts">
-import {computed, ref, watch} from "vue";
+import {computed, onMounted, ref, watch} from "vue";
+import type {CSSProperties} from "vue";
 import Button from "primevue/button";
 import Column from "primevue/column";
 import DataTable from "primevue/datatable";
@@ -37,7 +38,22 @@ const selectedRowId = ref<string | null>(null);
 const previewMode = ref<"initial" | "result">("initial");
 const mountSearch = ref("");
 const mountCategory = ref("all");
-const missingIcons = ref<Set<string>>(new Set());
+interface IconAtlas {
+  image: string;
+  width: number;
+  height: number;
+  icons: Record<string, {x: number; y: number; width: number; height: number}>;
+}
+
+const iconAtlas = ref<IconAtlas | null>(null);
+onMounted(async () => {
+  try {
+    const response = await fetch(`${import.meta.env.BASE_URL}icons/atlas.json`, {cache: "no-cache"});
+    if (response.ok) iconAtlas.value = await response.json() as IconAtlas;
+  } catch {
+    // Icons are optional in local builds without a Datamine checkout.
+  }
+});
 const stationMenus = new Map<number, {toggle: (event: Event) => void; hide: () => void}>();
 
 const sortOptions: Array<{label: string; value: SortBy}> = [
@@ -217,15 +233,20 @@ function clearFixedPylon(slot: number): void {
   stationMenus.get(slot)?.hide();
 }
 
-function iconSrc(option: PreparedOption | null): string | null {
-  const name = option?.icon_type;
-  if (!name || !/^[a-z0-9_-]+$/.test(name) || missingIcons.value.has(name)) return null;
-  return `${import.meta.env.BASE_URL}icons/${name}.webp`;
-}
+function iconStyle(option: PreparedOption | null, size: number): CSSProperties | null {
+  const atlas = iconAtlas.value;
+  const rect = option?.icon_type ? atlas?.icons[option.icon_type] : undefined;
+  if (!atlas || !rect) return null;
 
-function markIconMissing(option: PreparedOption | null): void {
-  if (!option?.icon_type) return;
-  missingIcons.value = new Set([...missingIcons.value, option.icon_type]);
+  const scale = Math.min(size / rect.width, size / rect.height);
+  return {
+    width: `${size}px`,
+    height: `${size}px`,
+    backgroundImage: `url("${import.meta.env.BASE_URL}icons/${atlas.image}")`,
+    backgroundSize: `${atlas.width * scale}px ${atlas.height * scale}px`,
+    backgroundPosition: `${(size - rect.width * scale) / 2 - rect.x * scale}px ${(size - rect.height * scale) / 2 - rect.y * scale}px`,
+    backgroundRepeat: "no-repeat",
+  };
 }
 
 function mountName(station: MountStation): string {
@@ -341,7 +362,7 @@ function formatReward(value: number | null): string {
                 @click="openMountMenu(station.slot, $event)"
               >
                 <span class="mount-preview-icon">
-                  <img v-if="iconSrc(station.option)" :src="iconSrc(station.option) || ''" alt="" @error="markIconMissing(station.option)" />
+                  <span v-if="iconStyle(station.option, 46)" class="atlas-icon" :style="iconStyle(station.option, 46)" />
                   <span v-else class="mount-preview-icon-fallback">{{ station.state === "free" ? "+" : station.option ? "◇" : "—" }}</span>
                 </span>
                 <span v-if="station.option && (station.selection?.count ?? station.option.count) > 1" class="mount-preview-count">×{{ station.selection?.count ?? station.option.count }}</span>
@@ -392,7 +413,7 @@ function formatReward(value: number | null): string {
                         :title="store.fixedPylonChoiceConflict(station.slot, group.variants[0].option_id) || mountRelationText(group.variants[0]) || group.variants[0].option_id"
                         @click="selectMount(station.slot, group.variants[0].option_id)"
                       >
-                        <img v-if="iconSrc(group.iconOption)" :src="iconSrc(group.iconOption) || ''" alt="" loading="lazy" @error="markIconMissing(group.iconOption)" />
+                        <span v-if="iconStyle(group.iconOption, 32)" class="atlas-icon" :style="iconStyle(group.iconOption, 32)" />
                         <span v-else class="mount-picker-icon-fallback">◇</span>
                         <span class="mount-picker-weapon-name">
                           {{ singleMountLabel(group) }}
@@ -400,7 +421,7 @@ function formatReward(value: number | null): string {
                         </span>
                       </button>
                       <div v-else class="mount-picker-weapon-row">
-                        <img v-if="iconSrc(group.iconOption)" :src="iconSrc(group.iconOption) || ''" alt="" loading="lazy" @error="markIconMissing(group.iconOption)" />
+                        <span v-if="iconStyle(group.iconOption, 32)" class="atlas-icon" :style="iconStyle(group.iconOption, 32)" />
                         <span v-else class="mount-picker-icon-fallback">◇</span>
                         <span class="mount-picker-weapon-name" :title="group.label">
                           {{ group.label }}
