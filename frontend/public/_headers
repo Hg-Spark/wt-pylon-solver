@@ -1,5 +1,5 @@
 # The manifest is refreshed on each deployment; the atlas has a content-hashed filename.
 /icons/atlas.json
   Cache-Control: public, max-age=0, must-revalidate
-/icons/*
+/icons/atlas-*.webp
   Cache-Control: public, max-age=31536000, immutable
