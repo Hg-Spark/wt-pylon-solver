@@ -152,36 +152,16 @@ button:disabled { cursor: not-allowed; }
 .mount-list-header { position: sticky; top: 0; z-index: 2; min-height: 40px; padding: 0 9px; border-bottom: 1px solid var(--line); background: var(--p-surface-100); color: var(--muted); font-size: 12px; font-weight: 700; }
 .mount-list-header > span { text-align: center; }
 .mount-list-header .checkbox-with-label { color: var(--muted-strong); font-size: 12px; }
-.tree-group + .tree-group { border-top: 1px solid var(--line); }
-.tree-folder { display: flex; align-items: center; width: 100%; color: var(--text); text-align: left; }
-.tree-folder { min-height: 48px; padding: 0 11px; gap: 9px; background: var(--surface-soft); }
-.tree-folder:hover,
-.tree-folder-toggle:hover { background: var(--surface-mint); }
-.tree-folder.selected {
-  box-shadow: inset 3px 0 var(--primary);
-  background: color-mix(in srgb, var(--primary-soft) 55%, var(--surface));
-}
-.tree-folder-toggle { display: flex; align-items: center; flex: 1 1 auto; min-width: 0; padding: 0; border: 0; background: transparent; color: inherit; text-align: left; }
-.tree-folder-toggle { min-height: 48px; gap: 7px; font-size: 15px; font-weight: 800; }
-.tree-folder-toggle:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; border-radius: 4px; }
-.folder-caret { display: inline-block; width: 11px; color: var(--muted); font-size: 13px; line-height: 1; transition: transform .16s ease; }
-.folder-caret.closed { transform: rotate(-90deg); }
-
-.tree-children { background: var(--surface); }
-.tree-subgroup + .tree-subgroup { border-top: 1px solid var(--p-surface-100); }
-.tree-subfolder { display: flex; align-items: center; min-height: 42px; padding: 0 11px 0 28px; gap: 9px; background: color-mix(in srgb, var(--surface-soft) 68%, var(--surface)); color: var(--text); }
-.tree-subfolder:hover,
-.tree-subfolder-toggle:hover { background: var(--surface-mint); }
-.tree-subfolder.selected { box-shadow: inset 3px 0 var(--primary); background: color-mix(in srgb, var(--primary-soft) 38%, var(--surface)); }
-.tree-subfolder-toggle { display: flex; align-items: center; flex: 1 1 auto; min-width: 0; min-height: 42px; gap: 7px; padding: 0; border: 0; background: transparent; color: inherit; font-size: 13px; font-weight: 750; text-align: left; }
-.tree-subfolder-toggle:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; border-radius: 4px; }
-
-.mount-list { background: var(--surface); }
-.mount-row { min-height: 52px; padding: 7px 9px 7px 48px; border-top: 1px solid var(--p-surface-100); background: var(--surface); transition: background .14s ease, box-shadow .14s ease; }
+.option-tree.p-tree { padding: 0; border: 0; border-radius: 0; background: var(--surface); }
+.option-tree .p-tree-root-children { padding: 0; }
+.option-tree .p-tree-node-children { padding-left: 14px; }
+.option-tree .p-tree-node-content { gap: 7px; padding: 3px 7px; border-radius: 0; }
+.option-tree .p-tree-node-label { flex: 1; min-width: 0; }
+.option-tree-group { color: var(--text); font-size: 15px; font-weight: 800; }
+.option-tree-subgroup { color: var(--text); font-size: 13px; font-weight: 750; }
+.option-tree .mount-row { width: 100%; min-width: 0; min-height: 52px; padding: 7px 4px 7px 0; background: var(--surface); }
 .mount-row:hover { background: color-mix(in srgb, var(--primary-soft) 35%, var(--surface)); }
 .mount-row.selected { box-shadow: inset 3px 0 var(--primary); background: color-mix(in srgb, var(--primary-soft) 55%, var(--surface)); }
-.mount-name-cell { min-width: 0; }
-.mount-option-checkbox { width: 100%; }
 .mount-label { display: flex; flex-wrap: wrap; align-items: center; min-width: 0; gap: 5px; }
 .mount-label-text { overflow-wrap: anywhere; color: var(--text); font-size: 13px; font-weight: 700; line-height: 1.3; }
 .zero-display-damage-badge { flex: 0 0 auto; padding: 1px 5px; border: 1px solid var(--p-orange-300); border-radius: 999px; background: var(--p-orange-50); color: var(--p-orange-800); font-size: 10px; font-weight: 800; line-height: 1.45; white-space: nowrap; }
@@ -335,7 +315,7 @@ button:disabled { cursor: not-allowed; }
   .results-page { padding-right: 7px; padding-left: 7px; }
   .panel-heading { padding-right: 4px; padding-left: 4px; }
   .mount-list-header { display: none; }
-  .mount-row { grid-template-columns: minmax(0, 1fr) auto; padding: 9px 8px 9px 30px; }
+  .option-tree .mount-row { grid-template-columns: minmax(0, 1fr) auto; padding: 9px 2px; }
   .mount-row-tools { gap: 3px; }
   .mount-row-damage { font-size: 11px; }
   .mount-row-condition { font-size: 10px; }

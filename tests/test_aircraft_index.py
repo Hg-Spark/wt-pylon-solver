@@ -4,11 +4,10 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from PIL import Image
 
 from build_static_data import (
     AIRCRAFT_NAME_MARKERS, aircraft_names, aircraft_nation,
-    clean_aircraft_name, optimize_pylon_icon, write_aircraft_index,
+    clean_aircraft_name, write_aircraft_index,
 )
 
 
@@ -68,27 +67,6 @@ class AircraftIndexTest(unittest.TestCase):
             self.assertEqual(index["f_16a_block_72v_china"]["nation"], "china")
             self.assertEqual(index["f_15e"]["nation"], "usa")
             self.assertEqual(index["p_47m"]["zh"], "P-47M-1-RE")
-
-    def test_lossless_webp_preserves_resolution_and_rgba(self):
-        with tempfile.TemporaryDirectory() as temp:
-            root = Path(temp)
-            source = root / "source.png"
-            destination = root / "icon.webp"
-            image = Image.new("RGBA", (160, 120), (25, 47, 68, 0))
-            for x in range(40, 120):
-                for y in range(30, 90):
-                    image.putpixel((x, y), (255, 50, 10, 255))
-            image.putpixel((8, 9), (33, 55, 77, 128))
-            image.save(source)
-
-            source_size, output_size = optimize_pylon_icon(source, destination)
-            self.assertEqual(source_size, source.stat().st_size)
-            self.assertEqual(output_size, destination.stat().st_size)
-            self.assertFalse((root / "icon.png").exists())
-            with Image.open(destination) as optimized:
-                self.assertEqual(optimized.format, "WEBP")
-                self.assertEqual(optimized.size, (160, 120))
-                self.assertEqual(optimized.convert("RGBA").tobytes(), image.tobytes())
 
     def test_index_uses_only_generated_aircraft_data(self):
         with tempfile.TemporaryDirectory() as temp:

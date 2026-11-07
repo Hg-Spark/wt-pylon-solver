@@ -1,8 +1,9 @@
 <script setup lang="ts">
-import {onMounted, ref, watch} from "vue";
+import {computed, onMounted, ref, watch} from "vue";
 import AutoComplete from "primevue/autocomplete";
 import Button from "primevue/button";
 import Checkbox from "primevue/checkbox";
+import Tree from "primevue/tree";
 import InputNumber from "primevue/inputnumber";
 import {fetchAircraftIndex} from "../services/api";
 import {AIRCRAFT_NATIONS, aircraftLabel, aircraftNationLabel, cleanAircraftName, normalizeAircraftSearch, readRecentAircraft, saveRecentAircraft, searchAircraft} from "../domain/aircraft";
@@ -17,6 +18,54 @@ const aircraftInput = ref<AircraftIndexItem | string | null>(store.aircraft);
 const recentIds = ref<string[]>(readRecentAircraft());
 const aircraftSearchError = ref("");
 const selectedNation = ref("");
+const treeNodes = computed(() => store.groupedRows.map((group) => ({
+  key: group.key,
+  label: `${group.label} (${group.rows.length})`,
+  type: "group",
+  children: group.subgroups.map((subgroup) => ({
+    key: subgroup.key,
+    label: `${subgroup.label} (${subgroup.rows.length})`,
+    type: "subgroup",
+    children: subgroup.rows.map((row) => ({
+      key: row.id, label: row.label, type: "row", data: row, leaf: true,
+    })),
+  })),
+})));
+const expandedKeys = ref<Record<string, boolean>>({});
+watch(() => store.loadedAircraft, () => {
+  expandedKeys.value = Object.fromEntries(store.groupedRows.map((group) => [group.key, true]));
+  expandedRows.value = new Set();
+});
+
+const selectionKeys = computed<Record<string, {checked: boolean; partialChecked: boolean}>>(() => {
+  const keys: Record<string, {checked: boolean; partialChecked: boolean}> = {};
+  for (const group of store.groupedRows) {
+    let groupCount = 0;
+    for (const subgroup of group.subgroups) {
+      let count = 0;
+      for (const row of subgroup.rows) {
+        if (store.isRowSelected(row)) {
+          keys[row.id] = {checked: true, partialChecked: false};
+          count += 1;
+        }
+      }
+      if (count) {
+        keys[subgroup.key] = {checked: count === subgroup.rows.length, partialChecked: count !== subgroup.rows.length};
+      }
+      groupCount += count;
+    }
+    if (groupCount) {
+      keys[group.key] = {checked: groupCount === group.rows.length, partialChecked: groupCount !== group.rows.length};
+    }
+  }
+  return keys;
+});
+
+function updateTreeSelection(value: unknown): void {
+  const keys = value as Record<string, {checked?: boolean}>;
+  store.selectedOptions = new Set(store.allRows.flatMap((row) =>
+    keys[row.id]?.checked ? row.optionIds : []));
+}
 
 onMounted(async () => {
   if (recentIds.value[0]) void loadAircraft(recentIds.value[0]);
@@ -79,7 +128,6 @@ function loadTypedAircraft(): void {
     aircraftSearchError.value = "请从搜索结果中选择飞机，或输入完整 Datamine ID。";
   }
 }
-
 
 function toggleDetails(rowId: string): void {
   const next = new Set(expandedRows.value);
@@ -179,116 +227,87 @@ function toggleDetails(rowId: string): void {
         <span>单枚伤害 · 高级条件</span>
       </div>
 
-      <section v-for="group in store.groupedRows" :key="group.key" class="tree-group">
-        <div class="tree-folder" :class="{selected: store.isGroupSelected(group)}">
-          <Checkbox
-            binary
-            :model-value="store.isGroupSelected(group)"
-            :indeterminate="store.isGroupPartiallySelected(group)"
-            :aria-label="`${group.label}全选`"
-            @update:model-value="store.toggleGroupSelection(group)"
-          />
-          <button class="tree-folder-toggle" type="button" :aria-expanded="!store.collapsedGroups.has(group.key)" @click="store.toggleGroup(group.key)">
-            <span class="folder-caret" :class="{closed: store.collapsedGroups.has(group.key)}">⌄</span>
-            <strong>{{ group.label }} ({{ group.rows.length }})</strong>
-          </button>
-        </div>
-
-        <div v-if="!store.collapsedGroups.has(group.key)" class="tree-children">
-          <section v-for="subgroup in group.subgroups" :key="subgroup.key" class="tree-subgroup">
-            <div class="tree-subfolder" :class="{selected: store.isSubgroupSelected(subgroup)}">
-              <Checkbox
-                binary
-                :model-value="store.isSubgroupSelected(subgroup)"
-                :indeterminate="store.isSubgroupPartiallySelected(subgroup)"
-                :aria-label="`${subgroup.label}全选`"
-                @update:model-value="store.toggleSubgroupSelection(subgroup)"
+      <Tree
+        v-model:expandedKeys="expandedKeys"
+        class="option-tree"
+        :value="treeNodes"
+        :selectionKeys="selectionKeys"
+        selectionMode="checkbox"
+        @update:selectionKeys="updateTreeSelection"
+      >
+        <template #group="{node}">
+          <strong class="option-tree-group">{{ node.label }}</strong>
+        </template>
+        <template #subgroup="{node}">
+          <span class="option-tree-subgroup">{{ node.label }}</span>
+        </template>
+        <template #row="{node}">
+          <div class="mount-row" :class="{selected: store.isRowSelected(node.data)}">
+            <span class="mount-label">
+              <span class="mount-label-text">{{ node.label }}</span>
+              <span v-if="node.data.hasZeroDisplayDamage"
+                class="zero-display-damage-badge"
+                title="该挂载有实际伤害，但显示伤害为 0"
+              >显示伤害 0</span>
+            </span>
+            <div class="mount-row-tools">
+              <span class="mount-row-damage">伤害 {{ store.rowDamageValue(node.data.id) ?? "—" }}</span>
+              <span v-if="(store.rowQuantityValue(node.data.id) || 0) > 0" class="mount-row-condition">
+                新增 {{ store.rowQuantityMode(node.data.id) === "exact" ? "=" : "≥" }}{{ store.rowQuantityValue(node.data.id) }}
+              </span>
+              <Button
+                size="small"
+                text
+                severity="secondary"
+                class="mount-row-detail-button"
+                :label="expandedRows.has(node.data.id) ? '收起' : '调整'"
+                :aria-expanded="expandedRows.has(node.data.id)"
+                :aria-label="`${node.data.label}：${expandedRows.has(node.data.id) ? '收起' : '展开'}伤害和新增数量设置`"
+                @click.stop="toggleDetails(node.data.id)"
               />
-              <button class="tree-subfolder-toggle" type="button" :aria-expanded="!store.collapsedGroups.has(subgroup.key)" @click="store.toggleGroup(subgroup.key)">
-                <span class="folder-caret" :class="{closed: store.collapsedGroups.has(subgroup.key)}">⌄</span>
-                <span>{{ subgroup.label }} ({{ subgroup.rows.length }})</span>
-              </button>
             </div>
-
-            <div v-if="!store.collapsedGroups.has(subgroup.key)" class="mount-list">
-              <article v-for="row in subgroup.rows" :key="row.id" class="mount-row" :class="{selected: store.isRowSelected(row)}">
-                <label class="mount-name-cell checkbox-with-label mount-option-checkbox">
-                  <Checkbox
-                    binary
-                    :model-value="store.isRowSelected(row)"
-                    :aria-label="`允许使用 ${row.label}`"
-                    @update:model-value="store.toggleRowSelection(row.id, Boolean($event))"
-                  />
-                  <span class="mount-label">
-                    <span class="mount-label-text">{{ row.label }}</span>
-                    <span
-                      v-if="row.hasZeroDisplayDamage"
-                      class="zero-display-damage-badge"
-                      title="该挂载有实际伤害，但显示伤害为 0"
-                    >显示伤害 0</span>
-                  </span>
-                </label>
-
-                <div class="mount-row-tools">
-                  <span class="mount-row-damage">伤害 {{ store.rowDamageValue(row.id) ?? "—" }}</span>
-                  <span v-if="(store.rowQuantityValue(row.id) || 0) > 0" class="mount-row-condition">
-                    新增 {{ store.rowQuantityMode(row.id) === "exact" ? "=" : "≥" }}{{ store.rowQuantityValue(row.id) }}
-                  </span>
+            <div v-if="expandedRows.has(node.data.id)" class="mount-advanced" @click.stop>
+              <label class="mount-editor damage-editor" title="修改单枚实际伤害，应用到同种武器各挂载预设">
+                <span class="mount-advanced-label">单枚实际伤害</span>
+                <InputNumber
+                  class="mount-number"
+                  :model-value="store.rowDamageValue(node.data.id)"
+                  :min="0"
+                  :max="1000000"
+                  :use-grouping="false"
+                  :max-fraction-digits="0"
+                  placeholder="—"
+                  @update:model-value="store.setRowDamage(node.data.id, $event)"
+                />
+              </label>
+              <div class="quantity-field">
+                <span class="mount-advanced-label">新增数量（固定挂载不计入）</span>
+                <div class="quantity-editor">
                   <Button
-                    size="small"
-                    text
+                    title="= 恰好新增 N 枚；≥ 至少新增 N 枚。固定挂载不计入"
+                    class="quantity-mode-button"
+                    :label="store.rowQuantityMode(node.data.id) === 'exact' ? '=' : '≥'"
                     severity="secondary"
-                    class="mount-row-detail-button"
-                    :label="expandedRows.has(row.id) ? '收起' : '调整'"
-                    :aria-expanded="expandedRows.has(row.id)"
-                    :aria-label="`${row.label}：${expandedRows.has(row.id) ? '收起' : '展开'}伤害和新增数量设置`"
-                    @click="toggleDetails(row.id)"
+                    outlined
+                    :aria-label="`${node.data.label}数量条件，点击切换`"
+                    @click="store.toggleRowQuantityMode(node.data.id)"
+                  />
+                  <InputNumber
+                    class="quantity-input"
+                    :model-value="store.rowQuantityValue(node.data.id)"
+                    :min="0"
+                    :max="64"
+                    :use-grouping="false"
+                    :max-fraction-digits="0"
+                    :aria-label="`${node.data.label}新增数量`"
+                    @update:model-value="store.setRowQuantity(node.data.id, $event)"
                   />
                 </div>
-                <div v-if="expandedRows.has(row.id)" class="mount-advanced">
-                  <label class="mount-editor damage-editor" title="修改单枚实际伤害，应用到同种武器各挂载预设">
-                    <span class="mount-advanced-label">单枚实际伤害</span>
-                    <InputNumber
-                      class="mount-number"
-                      :model-value="store.rowDamageValue(row.id)"
-                      :min="0"
-                      :max="1000000"
-                      :use-grouping="false"
-                      :max-fraction-digits="0"
-                      placeholder="—"
-                      @update:model-value="store.setRowDamage(row.id, $event)"
-                    />
-                  </label>
-                  <div class="quantity-field">
-                    <span class="mount-advanced-label">新增数量（固定挂载不计入）</span>
-                    <div class="quantity-editor">
-                      <Button
-                        title="= 恰好新增 N 枚；≥ 至少新增 N 枚。固定挂载不计入"
-                        class="quantity-mode-button"
-                        :label="store.rowQuantityMode(row.id) === 'exact' ? '=' : '≥'"
-                        severity="secondary"
-                        outlined
-                        :aria-label="`${row.label}数量条件，点击切换`"
-                        @click="store.toggleRowQuantityMode(row.id)"
-                      />
-                      <InputNumber
-                        class="quantity-input"
-                        :model-value="store.rowQuantityValue(row.id)"
-                        :min="0"
-                        :max="64"
-                        :use-grouping="false"
-                        :max-fraction-digits="0"
-                        :aria-label="`${row.label}新增数量`"
-                        @update:model-value="store.setRowQuantity(row.id, $event)"
-                      />
-                    </div>
-                  </div>
-                </div>
-              </article>
+              </div>
             </div>
-          </section>
-        </div>
-      </section>
+          </div>
+        </template>
+      </Tree>
     </div>
   </aside>
 </template>

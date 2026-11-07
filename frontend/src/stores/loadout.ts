@@ -1,5 +1,7 @@
 import {computed, ref, watch} from "vue";
 import {defineStore} from "pinia";
+import {releaseProxy, wrap, type Remote} from "comlink";
+import type {SolverWorkerApi} from "../domain/solver.worker";
 import {fetchOptions} from "../services/api";
 import {readRecentAircraft} from "../domain/aircraft";
 import {
@@ -16,7 +18,6 @@ import type {
   FixedPylons,
   OptionGroup,
   OptionRow,
-  OptionSubgroup,
   PreparedOption,
   PreparedPylon,
   QuantityConstraint,
@@ -49,7 +50,6 @@ export const useLoadoutStore = defineStore("loadout", () => {
   const quantitySettings = ref<Record<string, RowQuantitySetting>>({});
   const fixedPylons = ref<FixedPylons>({});
 
-  const collapsedGroups = ref<Set<string>>(new Set());
 
   const status = ref<AppStatus>("idle");
   const errorMessage = ref("");
@@ -189,7 +189,6 @@ export const useLoadoutStore = defineStore("loadout", () => {
     pylons.value = [];
     selectedOptions.value = new Set();
     fixedPylons.value = {};
-    collapsedGroups.value = new Set();
     status.value = "loading";
     errorMessage.value = "";
     lastResult.value = null;
@@ -203,9 +202,6 @@ export const useLoadoutStore = defineStore("loadout", () => {
       pylons.value = preparePylons(data.pylons || [], options.value);
       rewardProfile.value = data.reward_profile || null;
       loadedAircraft.value = requestedAircraft;
-      collapsedGroups.value = new Set(
-        groupedRows.value.flatMap((group) => group.subgroups.map((subgroup) => subgroup.key)),
-      );
 
       const optionIds = new Set(options.value.map((option) => option.option_id));
       const logicalRowIds = new Set(buildOptionRows(options.value).map((row) => row.id));
@@ -279,63 +275,6 @@ export const useLoadoutStore = defineStore("loadout", () => {
       if (requestId !== solveRequestId) return;
       setError(error instanceof Error ? error.message : "求解失败。");
     }
-  }
-
-  function toggleRowSelection(rowId: string, checked: boolean): void {
-    const row = rowById.value.get(rowId);
-    if (!row) return;
-    const next = new Set(selectedOptions.value);
-    for (const optionId of row.optionIds) {
-      if (checked) next.add(optionId);
-      else next.delete(optionId);
-    }
-    selectedOptions.value = next;
-  }
-
-  function isGroupSelected(group: OptionGroup): boolean {
-    return isRowsSelected(group.rows);
-  }
-
-  function isGroupPartiallySelected(group: OptionGroup): boolean {
-    return isRowsPartiallySelected(group.rows);
-  }
-
-  function isSubgroupSelected(subgroup: OptionSubgroup): boolean {
-    return isRowsSelected(subgroup.rows);
-  }
-
-  function isSubgroupPartiallySelected(subgroup: OptionSubgroup): boolean {
-    return isRowsPartiallySelected(subgroup.rows);
-  }
-
-  function isRowsSelected(rows: OptionRow[]): boolean {
-    return rows.length > 0 && rows.every((row) => isRowSelected(row));
-  }
-
-  function isRowsPartiallySelected(rows: OptionRow[]): boolean {
-    if (!rows.length) return false;
-    const anySelected = rows.some((row) => row.optionIds.some((optionId) => selectedOptions.value.has(optionId)));
-    return anySelected && !isRowsSelected(rows);
-  }
-
-  function toggleGroupSelection(group: OptionGroup): void {
-    toggleRowsSelection(group.rows, isGroupSelected(group));
-  }
-
-  function toggleSubgroupSelection(subgroup: OptionSubgroup): void {
-    toggleRowsSelection(subgroup.rows, isSubgroupSelected(subgroup));
-  }
-
-  function toggleRowsSelection(rows: OptionRow[], isSelected: boolean): void {
-    const shouldSelect = !isSelected;
-    const next = new Set(selectedOptions.value);
-    for (const row of rows) {
-      for (const optionId of row.optionIds) {
-        if (shouldSelect) next.add(optionId);
-        else next.delete(optionId);
-      }
-    }
-    selectedOptions.value = next;
   }
 
   function toggleAllRows(): void {
@@ -431,13 +370,6 @@ export const useLoadoutStore = defineStore("loadout", () => {
     quantitySettings.value = next;
   }
 
-  function toggleGroup(key: string): void {
-    const next = new Set(collapsedGroups.value);
-    if (next.has(key)) next.delete(key);
-    else next.add(key);
-    collapsedGroups.value = next;
-  }
-
   function setFixedPylon(slot: number, value: string | null | undefined): void {
     const pylon = pylons.value.find((item) => item.slot === slot);
     if (!pylon || (value != null && !pylon.options.some((option) => option.option_id === value))) return;
@@ -477,7 +409,6 @@ export const useLoadoutStore = defineStore("loadout", () => {
     damageOverrides.value = {};
     quantitySettings.value = {};
     fixedPylons.value = {};
-    collapsedGroups.value = new Set();
     rewardProfile.value = null;
     lastResult.value = null;
   }
@@ -519,7 +450,6 @@ export const useLoadoutStore = defineStore("loadout", () => {
     initialSummary,
     fixedConflict,
     fixedPylonChoiceConflict,
-    collapsedGroups,
     status,
     errorMessage,
     lastResult,
@@ -534,13 +464,6 @@ export const useLoadoutStore = defineStore("loadout", () => {
     selectedRowCount,
     loadOptions,
     solve,
-    toggleRowSelection,
-    isGroupSelected,
-    isGroupPartiallySelected,
-    isSubgroupSelected,
-    isSubgroupPartiallySelected,
-    toggleGroupSelection,
-    toggleSubgroupSelection,
     toggleAllRows,
     isRowSelected,
     rowDamageValue,
@@ -549,7 +472,6 @@ export const useLoadoutStore = defineStore("loadout", () => {
     rowQuantityValue,
     toggleRowQuantityMode,
     setRowQuantity,
-    toggleGroup,
     setFixedPylon,
     useSolutionAsInitial,
   };
@@ -590,75 +512,55 @@ function cloneQuantityConstraint(constraint: QuantityConstraint): QuantityConstr
   };
 }
 
-interface SolverWorkerResponse {
-  id: number;
-  solutions?: Solution[];
-  error?: string;
+interface ActiveSolverWorker {
+  worker: Worker;
+  api: Remote<SolverWorkerApi>;
+  reject: ((error: Error) => void) | null;
 }
 
-interface PendingSolverRequest {
-  resolve: (solutions: Solution[]) => void;
-  reject: (error: Error) => void;
-}
+let activeSolverWorker: ActiveSolverWorker | null = null;
 
-let solverWorker: Worker | null = null;
-let solverWorkerRequestId = 0;
-const pendingSolverRequests = new Map<number, PendingSolverRequest>();
-
-function getSolverWorker(): Worker {
-  if (solverWorker) return solverWorker;
+function getSolverWorker(): ActiveSolverWorker {
+  if (activeSolverWorker) return activeSolverWorker;
 
   const worker = new Worker(new URL("../domain/solver.worker.ts", import.meta.url), {type: "module"});
-  worker.onmessage = (event: MessageEvent<SolverWorkerResponse>) => {
-    const pending = pendingSolverRequests.get(event.data.id);
-    if (!pending) return;
-    pendingSolverRequests.delete(event.data.id);
-    if (event.data.error) {
-      pending.reject(new Error(event.data.error));
-      return;
+  const active: ActiveSolverWorker = {worker, api: wrap<SolverWorkerApi>(worker), reject: null};
+  worker.onerror = (event) => {
+    if (activeSolverWorker === active) {
+      cancelSolverWorker(new Error(event.message || "求解线程加载/执行失败。"));
     }
-    pending.resolve(event.data.solutions || []);
-  };
-  worker.onerror = (event: ErrorEvent) => {
-    const detail = event.message || event.filename;
-    failSolverWorker(new Error(
-      detail
-        ? `求解线程加载/执行失败：${detail}`
-        : "求解线程加载/执行失败，请检查前端 Worker 资源是否已部署。",
-    ), worker);
   };
   worker.onmessageerror = () => {
-    failSolverWorker(new Error("求解线程返回的数据无法读取。"), worker);
+    if (activeSolverWorker === active) {
+      cancelSolverWorker(new Error("求解线程返回的数据无法读取。"));
+    }
   };
-  solverWorker = worker;
-  return worker;
+  activeSolverWorker = active;
+  return active;
 }
 
 function solveInWorker(input: SolverInput): Promise<Solution[]> {
-  const worker = getSolverWorker();
-  const id = ++solverWorkerRequestId;
+  const active = getSolverWorker();
   return new Promise((resolve, reject) => {
-    pendingSolverRequests.set(id, {resolve, reject});
-    try {
-      worker.postMessage({id, input});
-    } catch (error) {
-      pendingSolverRequests.delete(id);
-      reject(error instanceof Error ? error : new Error("无法向求解线程发送数据。"));
-    }
+    active.reject = reject;
+    active.api.solve(input).then(
+      (solutions) => {
+        if (activeSolverWorker === active) active.reject = null;
+        resolve(solutions);
+      },
+      (error: unknown) => {
+        if (activeSolverWorker === active) active.reject = null;
+        reject(error instanceof Error ? error : new Error(String(error)));
+      },
+    );
   });
 }
 
-function cancelSolverWorker(): void {
-  if (!solverWorker && pendingSolverRequests.size === 0) return;
-  failSolverWorker(new Error("求解已取消。"));
-}
-
-function failSolverWorker(error: Error, sourceWorker?: Worker): void {
-  if (sourceWorker && solverWorker !== sourceWorker) return;
-  if (solverWorker) {
-    solverWorker.terminate();
-    solverWorker = null;
-  }
-  for (const pending of pendingSolverRequests.values()) pending.reject(error);
-  pendingSolverRequests.clear();
+function cancelSolverWorker(reason = new Error("求解已取消。")): void {
+  const active = activeSolverWorker;
+  if (!active) return;
+  activeSolverWorker = null;
+  active.api[releaseProxy]();
+  active.worker.terminate();
+  active.reject?.(reason);
 }
