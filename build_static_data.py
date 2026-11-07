@@ -228,7 +228,7 @@ def main() -> None:
         written += int(write_aircraft(aircraft, source, output, icon_types))
 
     # Keep the original Datamine PNGs for the Node sprite-atlas build step.
-    icon_source = output.parent / ".icon-source"
+    icon_source = output.parent.parent / ".icon-source"
     icon_source.mkdir(parents=True, exist_ok=True)
     for path in icon_source.glob("*.png"):
         path.unlink()
