@@ -1,5 +1,5 @@
 import {createHash} from "node:crypto";
-import {readdir, mkdir, readFile, rm, writeFile} from "node:fs/promises";
+import {readdir, mkdir, rm, writeFile} from "node:fs/promises";
 import {basename, dirname, join} from "node:path";
 import {fileURLToPath} from "node:url";
 import sharp from "sharp";
