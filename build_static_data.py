@@ -227,13 +227,16 @@ def main() -> None:
     for aircraft in aircraft_ids:
         written += int(write_aircraft(aircraft, source, output, icon_types))
 
-    # Keep the original Datamine PNGs for the Node sprite-atlas build step.
-    icon_source = output.parent.parent / ".icon-source"
-    icon_source.mkdir(parents=True, exist_ok=True)
-    for path in icon_source.glob("*.png"):
-        path.unlink()
+    if written == 0:
+        raise SystemExit("No aircraft data was generated")
 
     if root is not None:
+        # Icons are available only from a local Datamine checkout.
+        icon_source = output.parent.parent / ".icon-source"
+        icon_source.mkdir(parents=True, exist_ok=True)
+        for path in icon_source.glob("*.png"):
+            path.unlink()
+
         icon_root = root / "atlases.vromfs.bin_u/gameuiskin"
         for icon_type in sorted(icon_types):
             source_icon = icon_root / f"{icon_type}.png"
@@ -241,9 +244,6 @@ def main() -> None:
                 raise SystemExit(f"Missing Datamine icon: {source_icon}")
             copyfile(source_icon, icon_source / f"{icon_type}.png")
         print(f"prepared {len(icon_types)} icon PNGs for sprite atlas")
-
-    if written == 0:
-        raise SystemExit("No aircraft data was generated")
     write_aircraft_index(output, root, unit_costs)
     print(f"generated {written}/{len(aircraft_ids)} aircraft files in {output}")
 
