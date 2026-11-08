@@ -125,7 +125,6 @@ button:disabled { cursor: not-allowed; }
 .library-title { min-width: 112px; }
 .library-aircraft-field { display: grid; flex: 0 0 auto; grid-template-columns: minmax(0, 1fr); align-items: start; gap: 7px; min-width: 0; margin: 0; color: var(--muted-strong); font-size: 12px; font-weight: 700; }
 .aircraft-control { display: flex; gap: 6px; min-width: 0; }
-.aircraft-input { min-width: 0; width: 100%; height: var(--control-h); }
 .load-button { flex: 0 0 auto; min-width: 62px; height: var(--control-h); }
 .library-aircraft-picker { flex: none; width: 100%; min-width: 0; display: grid; align-content: start; gap: 5px; }
 .library-aircraft-picker .library-aircraft-field { width: 100%; min-width: 0; }
@@ -283,8 +282,6 @@ button:disabled { cursor: not-allowed; }
 .empty-state p,
 .library-empty p { max-width: 350px; margin: 4px 0 0; font-size: 12px; }
 .results-empty { flex: 1 1 auto; min-height: 150px; }
-.empty-inline { margin: 0; color: var(--muted); font-size: 12px; }
-.sr-only { position: absolute; width: 1px; height: 1px; padding: 0; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0; }
 
 
 @media (max-width: 980px) {
