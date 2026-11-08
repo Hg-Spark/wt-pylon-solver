@@ -211,8 +211,6 @@ export const useLoadoutStore = defineStore("loadout", () => {
       quantitySettings.value = Object.fromEntries(
         Object.entries(previousQuantitySettings).filter(([rowId]) => logicalRowIds.has(rowId)),
       );
-      // Newly loaded aircraft start with no candidate weapons enabled.
-      selectedOptions.value = new Set();
       status.value = "ready";
     } catch (error) {
       if (requestId !== loadRequestId || controller.signal.aborted) return;
@@ -250,7 +248,7 @@ export const useLoadoutStore = defineStore("loadout", () => {
         sortBy: sortBy.value,
         allowedOptions: new Set(selectedOptions.value),
         damageOverrides: {...damageOverrides.value},
-        quantityConstraints: quantityConstraintEntries.value.map(cloneQuantityConstraint),
+        quantityConstraints: quantityConstraintEntries.value,
         fixedPylons: {...fixedPylons.value},
       };
       const solutions = await solveInWorker(input);
@@ -498,17 +496,6 @@ function cloneRewardProfile(profile: BombingRewardProfile | null): BombingReward
     low_reward_constant: profile.low_reward_constant,
     low_reward_inverse_damage: profile.low_reward_inverse_damage,
     piecewise_linear_table: profile.piecewise_linear_table.map(([damage, reward]) => [damage, reward] as [number, number]),
-  };
-}
-
-function cloneQuantityConstraint(constraint: QuantityConstraint): QuantityConstraint {
-  return {
-    ...(constraint.option_id ? {option_id: constraint.option_id} : {}),
-    ...(constraint.option_ids ? {option_ids: [...constraint.option_ids]} : {}),
-    ...(constraint.constraint_id ? {constraint_id: constraint.constraint_id} : {}),
-    ...(constraint.count_by ? {count_by: constraint.count_by} : {}),
-    count: constraint.count,
-    mode: constraint.mode,
   };
 }
 
