@@ -178,3 +178,26 @@ test("fixed air-to-air or other non-bombing stores consume a station", () => {
   assert.ok(kept.length > 0);
   assert.ok(kept.every((r) => names(r).has("UNKNOWN")));
 });
+
+test("mixed quantity constraints exclude fixed mounts and retain required support", () => {
+  const pylons = [
+    pylon(1, option(1, "PIN", 10, {count: 2})),
+    pylon(2, option(2, "GBU", 100, {count: 2, required_option_ids: ["POD"]})),
+    pylon(3, option(3, "POD", 0, {support: true, counted_base_damage: 0})),
+    pylon(4, option(4, "RKT", 40)),
+  ];
+  const quantityConstraints = [
+    {constraint_id: "bombs", option_ids: ["PIN", "GBU"], count_by: "weapon", count: 2, mode: "exact"},
+    {option_id: "RKT", count_by: "selection", count: 1, mode: "at_least"},
+  ];
+  const result = solve(pylons, 150, {fixedPylons: {1: "PIN"}, quantityConstraints});
+  assert.ok(result.length > 0);
+  assert.ok(result.every((solution) =>
+    ["PIN", "GBU", "POD", "RKT"].every((id) => names(solution).has(id))));
+
+  const impossible = quantityConstraints.map((constraint) =>
+    constraint.constraint_id === "bombs" ? {...constraint, count: 1} : constraint);
+  assert.deepEqual(solve(pylons, 150, {
+    fixedPylons: {1: "PIN"}, quantityConstraints: impossible,
+  }), []);
+});
