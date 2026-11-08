@@ -26,7 +26,7 @@ npm install
 npm run dev
 ```
 
-`frontend/public/data/*.json`、`frontend/.icon-source/`、`frontend/src/generated/icon-atlas.json` 和 `frontend/public/icons/` 下的图集都是生成物，不提交到 Git。无本地 Datamine 时图标使用回退字符。构建还会生成 `data/aircraft-index.json`：只包含成功生成的飞机 ID，以及从 Datamine `lang/units.csv` 读取的中英文名称。
+`frontend/public/data/*.json`、`frontend/.icon-source/`、`frontend/src/generated/icon-atlas.ts` 和 `frontend/public/icons/` 下的图集都是生成物，不提交到 Git。无本地 Datamine 时图标使用回退字符。构建还会生成 `data/aircraft-index.json`：只包含成功生成的飞机 ID，以及从 Datamine `lang/units.csv` 读取的中英文名称。
 
 飞机选择支持中文、英文和 Datamine ID 搜索，可按十大科技树系别筛选；系别读取 Datamine 的 `wpcost.blkx` 中 `country` 字段，原始名称中的国籍装饰字符和零宽空格在构建阶段清理。可以直接输入完整 ID 作为回退。最近 8 个成功加载的飞机 ID 保存在站点的第一方 Cookie（`wt_recent_aircraft`，有效期 180 天）。再次打开页面会自动恢复并加载上次使用的飞机；没有记录时默认留空。不记录挂载配置或搜索历史，清除浏览器 Cookie 后即清空。
 
