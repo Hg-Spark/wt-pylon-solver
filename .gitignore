@@ -6,7 +6,7 @@ frontend/public/data/*.json
 frontend/.icon-source/
 frontend/public/icons/*.png
 frontend/public/icons/*.webp
-frontend/public/icons/atlas.json
+frontend/src/generated/icon-atlas.json
 !frontend/public/data/.gitkeep
 __pycache__/
 *.py[cod]
