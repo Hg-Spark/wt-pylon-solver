@@ -33,7 +33,10 @@ const treeNodes = computed(() => store.groupedRows.map((group) => ({
 })));
 const expandedKeys = ref<Record<string, boolean>>({});
 watch(() => store.loadedAircraft, () => {
-  expandedKeys.value = Object.fromEntries(store.groupedRows.map((group) => [group.key, true]));
+  expandedKeys.value = Object.fromEntries(store.groupedRows.flatMap((group) => [
+    [group.key, true],
+    ...group.subgroups.map((subgroup) => [subgroup.key, true] as const),
+  ]));
   expandedRows.value = new Set();
 });
 
