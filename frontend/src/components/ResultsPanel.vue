@@ -46,10 +46,10 @@ interface IconAtlas {
 }
 
 // Eager glob is resolved at build time; no request for atlas.json is made.
-const iconAtlas = import.meta.glob<IconAtlas>("../generated/icon-atlas*.json", {
+const iconAtlas = import.meta.glob<IconAtlas>("../generated/icon-atlas*.ts", {
   eager: true,
   import: "default",
-})["../generated/icon-atlas.json"];
+})["../generated/icon-atlas.ts"];
 const stationMenus = new Map<number, {toggle: (event: Event) => void; hide: () => void}>();
 
 const sortOptions: Array<{label: string; value: SortBy}> = [
