@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import {computed, onMounted, ref, watch} from "vue";
+import {computed, ref, watch} from "vue";
 import type {CSSProperties} from "vue";
 import Button from "primevue/button";
 import Column from "primevue/column";
@@ -45,15 +45,11 @@ interface IconAtlas {
   icons: Record<string, {x: number; y: number; width: number; height: number}>;
 }
 
-const iconAtlas = ref<IconAtlas | null>(null);
-onMounted(async () => {
-  try {
-    const response = await fetch(`${import.meta.env.BASE_URL}icons/atlas.json`, {cache: "no-cache"});
-    if (response.ok) iconAtlas.value = await response.json() as IconAtlas;
-  } catch {
-    // Icons are optional in local builds without a Datamine checkout.
-  }
-});
+// Eager glob is resolved at build time; no request for atlas.json is made.
+const iconAtlas = import.meta.glob<IconAtlas>("../generated/icon-atlas*.json", {
+  eager: true,
+  import: "default",
+})["../generated/icon-atlas.json"];
 const stationMenus = new Map<number, {toggle: (event: Event) => void; hide: () => void}>();
 
 const sortOptions: Array<{label: string; value: SortBy}> = [
@@ -234,7 +230,7 @@ function clearFixedPylon(slot: number): void {
 }
 
 function iconStyle(option: PreparedOption | null, size: number): CSSProperties | null {
-  const atlas = iconAtlas.value;
+  const atlas = iconAtlas;
   const rect = option?.icon_type ? atlas?.icons[option.icon_type] : undefined;
   if (!atlas || !rect) return null;
 
