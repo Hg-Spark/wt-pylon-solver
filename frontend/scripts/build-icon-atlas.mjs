@@ -8,8 +8,10 @@ import Spritesmith from "spritesmith";
 const frontend = dirname(dirname(fileURLToPath(import.meta.url)));
 const sources = join(frontend, ".icon-source");
 const output = join(frontend, "public", "icons");
+const generated = join(frontend, "src", "generated");
 
 await mkdir(output, {recursive: true});
+await mkdir(generated, {recursive: true});
 const inputFiles = (await readdir(sources).catch((error) => {
   if (error.code === "ENOENT") return [];
   throw error;
@@ -43,5 +45,6 @@ if (inputFiles.length) {
   );
   await writeFile(join(output, manifest.image), webp);
 }
-await writeFile(join(output, "atlas.json"), JSON.stringify(manifest));
+// Vite eagerly bundles this generated index into the application JavaScript.
+await writeFile(join(generated, "icon-atlas.json"), JSON.stringify(manifest));
 console.log(`Sprite atlas: ${inputFiles.length} icons${manifest.image ? ` -> ${manifest.image}` : ""}`);
