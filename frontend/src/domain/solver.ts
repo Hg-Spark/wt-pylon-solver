@@ -112,33 +112,20 @@ export function solvePylonLoadout(input: SolverInput): Solution[] {
     relationKey: "",
   };
 
-  const finalCandidates = constraints.targets.size === 0
-    ? solveUnconstrained(
-      initial,
-      activePylons,
-      optionsBySlot,
-      suffixMaxDamage,
-      targetDamage,
-      searchLimit,
-      input.sortBy,
-      resultLimit,
-      relations,
-      fixed,
-    )
-    : solveConstrained(
-      initial,
-      activePylons,
-      optionsBySlot,
-      suffixMaxDamage,
-      targetDamage,
-      searchLimit,
-      constraints,
-      constraintKeys,
-      input.sortBy,
-      resultLimit,
-      relations,
-      fixed,
-    );
+  const finalCandidates = solveDP(
+    initial,
+    activePylons,
+    optionsBySlot,
+    suffixMaxDamage,
+    targetDamage,
+    searchLimit,
+    constraints,
+    constraintKeys,
+    input.sortBy,
+    resultLimit,
+    relations,
+    fixed,
+  );
 
   const solutions = filterDominatedSolutions(
     finalCandidates.filter((candidate) => supportsAreRequired(candidate, fixed)),
@@ -265,20 +252,28 @@ function buildSuffixMaxDamage(maxDamageBySlot: number[]): number[] {
   return suffix;
 }
 
-function solveUnconstrained(
+function solveDP(
   initial: Candidate,
   activePylons: PreparedPylon[],
   optionsBySlot: EffectiveOption[][],
   suffixMaxDamage: number[],
   targetDamage: number,
   searchLimit: number,
+  constraints: ConstraintSet,
+  constraintKeys: string[],
   sortBy: SortBy,
   stateLimit: number,
   relations: Relations,
   fixed: Readonly<FixedPylons>,
 ): Candidate[] {
+  const hasConstraints = constraints.targets.size > 0;
   let states = new Map<string, Candidate[]>();
-  states.set(stateKeyForSort(0, 0, sortBy, ""), [initial]);
+  states.set(
+    hasConstraints
+      ? stateKey(0, 0, initial.constraintCounts, constraintKeys, sortBy, "")
+      : stateKeyForSort(0, 0, sortBy, ""),
+    [initial],
+  );
 
   for (let index = 0; index < activePylons.length; index += 1) {
     const pylon = activePylons[index];
@@ -306,86 +301,15 @@ function solveUnconstrained(
           if (damage > searchLimit) continue;
           if (damage < targetDamage && damage + remainingMaxDamage < targetDamage) continue;
 
-          const nextCandidate = extendCandidate(candidate, pylon.slot, option, candidate.constraintCounts, relations);
-          const nextKey = stateKeyForSort(damage, nextCandidate.countedBaseDamage, sortBy, nextCandidate.relationKey);
-          nextStates.set(
-            nextKey,
-            insertStateCandidate(
-              nextStates.get(nextKey) || [],
-              nextCandidate,
-              sortBy,
-              stateLimit,
-            ),
-          );
-        }
-      }
-    }
-    states = nextStates;
-  }
-
-  const result: Candidate[] = [];
-  for (const candidates of states.values()) {
-    for (const candidate of candidates) {
-      if (candidate.damage >= targetDamage) result.push(candidate);
-    }
-  }
-  return result;
-}
-
-function solveConstrained(
-  initial: Candidate,
-  activePylons: PreparedPylon[],
-  optionsBySlot: EffectiveOption[][],
-  suffixMaxDamage: number[],
-  targetDamage: number,
-  searchLimit: number,
-  constraints: ConstraintSet,
-  constraintKeys: string[],
-  sortBy: SortBy,
-  stateLimit: number,
-  relations: Relations,
-  fixed: Readonly<FixedPylons>,
-): Candidate[] {
-  let states = new Map<string, Candidate[]>();
-  states.set(stateKey(0, 0, initial.constraintCounts, constraintKeys, sortBy, ""), [initial]);
-
-  for (let index = 0; index < activePylons.length; index += 1) {
-    const pylon = activePylons[index];
-    const options = optionsBySlot[index];
-    const remainingMaxDamage = suffixMaxDamage[index + 1];
-    const nextStates = new Map<string, Candidate[]>();
-
-    for (const [key, candidates] of states) {
-      const stateDamage = candidates[0]?.damage ?? 0;
-      if ((!Object.prototype.hasOwnProperty.call(fixed, pylon.slot) || fixed[pylon.slot] === null)
-        && (stateDamage >= targetDamage || stateDamage + remainingMaxDamage >= targetDamage)) {
-        const compatible = candidates.filter((candidate) => isCompatible(candidate, pylon.slot, null, relations));
-        if (compatible.length) nextStates.set(key, compatible);
-      }
-    }
-
-    for (const candidates of states.values()) {
-      for (const candidate of candidates) {
-        for (const option of options) {
-          if (!isCompatible(candidate, pylon.slot, option, relations)) continue;
-          const nextCounts = fixed[pylon.slot] === option.optionId
-            ? candidate.constraintCounts
-            : nextConstraintCounts(candidate.constraintCounts, option, constraints);
-          if (!nextCounts) continue;
-
-          const damage = candidate.damage + option.damage;
-          if (damage > searchLimit) continue;
-          if (damage < targetDamage && damage + remainingMaxDamage < targetDamage) continue;
+          const nextCounts = hasConstraints && fixed[pylon.slot] !== option.optionId
+            ? nextConstraintCounts(candidate.constraintCounts, option, constraints)
+            : candidate.constraintCounts;
+          if (nextCounts === null) continue;
 
           const nextCandidate = extendCandidate(candidate, pylon.slot, option, nextCounts, relations);
-          const nextKey = stateKey(
-            damage,
-            nextCandidate.countedBaseDamage,
-            nextCounts,
-            constraintKeys,
-            sortBy,
-            nextCandidate.relationKey,
-          );
+          const nextKey = hasConstraints
+            ? stateKey(damage, nextCandidate.countedBaseDamage, nextCounts, constraintKeys, sortBy, nextCandidate.relationKey)
+            : stateKeyForSort(damage, nextCandidate.countedBaseDamage, sortBy, nextCandidate.relationKey);
           nextStates.set(
             nextKey,
             insertStateCandidate(
@@ -404,7 +328,8 @@ function solveConstrained(
   const result: Candidate[] = [];
   for (const candidates of states.values()) {
     for (const candidate of candidates) {
-      if (candidate.damage >= targetDamage && constraintsSatisfied(candidate.constraintCounts, constraints.targets)) {
+      if (candidate.damage >= targetDamage
+        && (!hasConstraints || constraintsSatisfied(candidate.constraintCounts, constraints.targets))) {
         result.push(candidate);
       }
     }
