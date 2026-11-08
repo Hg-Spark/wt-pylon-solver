@@ -10,7 +10,10 @@ const sources = join(frontend, ".icon-source");
 const output = join(frontend, "public", "icons");
 
 await mkdir(output, {recursive: true});
-const inputFiles = (await readdir(sources).catch(() => []))
+const inputFiles = (await readdir(sources).catch((error) => {
+  if (error.code === "ENOENT") return [];
+  throw error;
+}))
   .filter((file) => file.endsWith(".png"))
   .sort()
   .map((file) => join(sources, file));
