@@ -1,6 +1,6 @@
 import type {AircraftIndexItem} from "../types";
 
-const RECENT_COOKIE = "wt_recent_aircraft";
+const RECENT_KEY = "wt_recent_aircraft";
 const MAX_RECENT = 8;
 const AIRCRAFT_ID = /^[a-z0-9_-]+$/;
 // Datamine uses these glyphs as insignia/event badges within localized names.
@@ -72,20 +72,37 @@ export function updatedRecentAircraft(existing: readonly string[], id: string): 
     .slice(0, MAX_RECENT);
 }
 
+function parseRecentAircraft(value: unknown): string[] {
+  if (!Array.isArray(value)) return [];
+  const result: string[] = [];
+  for (const id of value) {
+    if (typeof id === "string" && AIRCRAFT_ID.test(id) && !result.includes(id)) result.push(id);
+    if (result.length === MAX_RECENT) break;
+  }
+  return result;
+}
+
+function clearRecentAircraftCookie(): void {
+  document.cookie = `${RECENT_KEY}=; Path=/; Max-Age=0; SameSite=Lax`;
+}
+
 export function readRecentAircraft(): string[] {
-  if (typeof document === "undefined") return [];
+  if (typeof window === "undefined") return [];
   try {
-    const match = document.cookie.split(";").map((part) => part.trim())
-      .find((part) => part.startsWith(`${RECENT_COOKIE}=`));
-    if (!match) return [];
-    const value: unknown = JSON.parse(decodeURIComponent(match.slice(RECENT_COOKIE.length + 1)));
-    if (!Array.isArray(value)) return [];
-    const result: string[] = [];
-    for (const id of value) {
-      if (typeof id === "string" && AIRCRAFT_ID.test(id) && !result.includes(id)) result.push(id);
-      if (result.length === MAX_RECENT) break;
+    const stored = window.localStorage.getItem(RECENT_KEY);
+    if (stored !== null) {
+      clearRecentAircraftCookie();
+      return parseRecentAircraft(JSON.parse(stored));
     }
-    return result;
+
+    const match = document.cookie.split(";").map((part) => part.trim())
+      .find((part) => part.startsWith(`${RECENT_KEY}=`));
+    if (!match) return [];
+
+    const recent = parseRecentAircraft(JSON.parse(decodeURIComponent(match.slice(RECENT_KEY.length + 1))));
+    window.localStorage.setItem(RECENT_KEY, JSON.stringify(recent));
+    clearRecentAircraftCookie();
+    return recent;
   } catch {
     return [];
   }
@@ -93,12 +110,12 @@ export function readRecentAircraft(): string[] {
 
 export function saveRecentAircraft(id: string, existing: readonly string[]): string[] {
   const next = updatedRecentAircraft(existing, id);
-  if (typeof document !== "undefined") {
-    const secure = document.location.protocol === "https:" ? "; Secure" : "";
+  if (typeof window !== "undefined") {
     try {
-      document.cookie = `${RECENT_COOKIE}=${encodeURIComponent(JSON.stringify(next))}; Path=/; Max-Age=15552000; SameSite=Lax${secure}`;
+      window.localStorage.setItem(RECENT_KEY, JSON.stringify(next));
+      clearRecentAircraftCookie();
     } catch {
-      // Browsers that block cookies still retain the in-session recent list.
+      // Keep the in-memory recent list if browser storage is unavailable.
     }
   }
   return next;

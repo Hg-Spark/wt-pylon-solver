@@ -238,12 +238,15 @@ def main() -> None:
             path.unlink()
 
         icon_root = root / "atlases.vromfs.bin_u/gameuiskin"
+        prepared_icons = 0
         for icon_type in sorted(icon_types):
             source_icon = icon_root / f"{icon_type}.png"
             if not source_icon.is_file():
-                raise SystemExit(f"Missing Datamine icon: {source_icon}")
+                print(f"missing Datamine icon (fallback): {icon_type}")
+                continue
             copyfile(source_icon, icon_source / f"{icon_type}.png")
-        print(f"prepared {len(icon_types)} icon PNGs for sprite atlas")
+            prepared_icons += 1
+        print(f"prepared {prepared_icons}/{len(icon_types)} icon PNGs for sprite atlas")
     write_aircraft_index(output, root, unit_costs)
     print(f"generated {written}/{len(aircraft_ids)} aircraft files in {output}")
 
